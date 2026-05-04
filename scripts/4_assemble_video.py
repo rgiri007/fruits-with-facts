@@ -1,13 +1,12 @@
 """
 Step 4: Assemble final video using FFmpeg (Free, No Watermark)
 Combines: images + voiceover + background music + English subtitles
-Subtitles are accurately timed to match the actual audio segments
+Fixed: all filters merged into one filter_complex — no conflict
 """
 
 import json
 import os
 import subprocess
-import math
 
 
 # ── Load video data ───────────────────────────────────────────────────────────
@@ -16,7 +15,7 @@ def load_video_data():
         return json.load(f)
 
 
-# ── Get duration of any audio file ───────────────────────────────────────────
+# ── Get duration of any audio/video file ─────────────────────────────────────
 def get_duration(path):
     result = subprocess.run([
         "ffprobe", "-v", "error",
@@ -30,7 +29,7 @@ def get_duration(path):
         return 4.0
 
 
-# ── Format seconds to SRT timestamp ──────────────────────────────────────────
+# ── Format seconds → SRT timestamp ───────────────────────────────────────────
 def to_srt_time(seconds):
     seconds = max(0.0, seconds)
     h  = int(seconds // 3600)
@@ -40,80 +39,53 @@ def to_srt_time(seconds):
     return f"{h:02d}:{m:02d}:{s:02d},{ms:03d}"
 
 
-# ── Build accurate SRT from real audio durations ──────────────────────────────
+# ── Build accurate SRT subtitles ──────────────────────────────────────────────
 def create_subtitles(data):
-    """
-    Reads the ACTUAL duration of every audio segment file so subtitles
-    are perfectly in sync — no guessing or estimation.
-    """
     voiceover = data["voiceover"]
+    seg_names = ["intro","fact_1","fact_2","fact_3","fact_4","fact_5","outro"]
+    seg_texts = [voiceover[k] for k in seg_names]
 
-    segment_names = ["intro", "fact_1", "fact_2", "fact_3", "fact_4", "fact_5", "outro"]
-    segment_texts = [
-        voiceover["intro"],
-        voiceover["fact_1"],
-        voiceover["fact_2"],
-        voiceover["fact_3"],
-        voiceover["fact_4"],
-        voiceover["fact_5"],
-        voiceover["outro"],
-    ]
+    SILENCE_GAP    = 0.8
+    WORDS_PER_LINE = 7
 
-    SILENCE_GAP = 0.8   # must match 2_generate_voice.py silence duration
-    WORDS_PER_LINE = 7  # words shown per subtitle card
+    srt_lines = []
+    idx       = 1
+    cursor    = 0.0
 
-    srt_lines   = []
-    sub_index   = 1
-    cursor      = 0.0  # running clock in seconds
+    for name, text in zip(seg_names, seg_texts):
+        seg_path = f"output/audio/segments/{name}.mp3"
+        seg_dur  = get_duration(seg_path) if os.path.exists(seg_path) \
+                   else max(3.0, len(text.split()) / 2.8)
 
-    for seg_name, text in zip(segment_names, segment_texts):
-        seg_path = f"output/audio/segments/{seg_name}.mp3"
-
-        if os.path.exists(seg_path):
-            seg_duration = get_duration(seg_path)
-        else:
-            # Rough fallback: ~2.8 words per second for espeak
-            word_count   = len(text.split())
-            seg_duration = max(3.0, word_count / 2.8)
-
-        # Split text into subtitle cards
         words  = text.split()
-        chunks = [words[i:i + WORDS_PER_LINE]
+        chunks = [words[i:i+WORDS_PER_LINE]
                   for i in range(0, len(words), WORDS_PER_LINE)]
-
-        # Distribute segment duration evenly across cards
-        card_duration = seg_duration / max(len(chunks), 1)
+        card_dur = seg_dur / max(len(chunks), 1)
 
         for chunk in chunks:
-            card_text  = " ".join(chunk)
-            start_time = cursor
-            end_time   = cursor + card_duration - 0.05  # tiny gap between cards
-
+            start = cursor
+            end   = cursor + card_dur - 0.05
             srt_lines.append(
-                f"{sub_index}\n"
-                f"{to_srt_time(start_time)} --> {to_srt_time(end_time)}\n"
-                f"{card_text}\n"
+                f"{idx}\n{to_srt_time(start)} --> {to_srt_time(end)}\n"
+                f"{' '.join(chunk)}\n"
             )
-            sub_index += 1
-            cursor    += card_duration
+            idx    += 1
+            cursor += card_dur
 
-        cursor += SILENCE_GAP  # gap between segments
-
-    srt_content = "\n".join(srt_lines)
+        cursor += SILENCE_GAP
 
     os.makedirs("output", exist_ok=True)
-    with open("output/subtitles.srt", "w", encoding="utf-8") as f:
-        f.write(srt_content)
+    srt_path = os.path.abspath("output/subtitles.srt")
+    with open(srt_path, "w", encoding="utf-8") as f:
+        f.write("\n".join(srt_lines))
+    print(f"Subtitles: {srt_path} ({idx-1} cards)")
+    return srt_path
 
-    print(f"Subtitles created: output/subtitles.srt ({sub_index - 1} cards)")
-    return cursor  # total expected duration
 
-
-# ── Create soft background music ─────────────────────────────────────────────
+# ── Generate soft background music ───────────────────────────────────────────
 def create_background_music(duration):
     out = "output/audio/background_music.mp3"
     fade_start = max(0, duration - 3)
-
     subprocess.run([
         "ffmpeg", "-y",
         "-f", "lavfi", "-i", "sine=frequency=200:sample_rate=44100",
@@ -121,105 +93,86 @@ def create_background_music(duration):
         "-f", "lavfi", "-i", "sine=frequency=400:sample_rate=44100",
         "-filter_complex",
         f"[0][1][2]amix=inputs=3:duration=longest,"
-        f"volume=0.06,"
-        f"afade=t=in:d=3,"
-        f"afade=t=out:st={fade_start}:d=3",
+        f"volume=0.06,afade=t=in:d=3,afade=t=out:st={fade_start}:d=3",
         "-t", str(duration + 2),
-        "-codec:a", "libmp3lame",
-        out
+        "-codec:a", "libmp3lame", out
     ], capture_output=True)
-    print(f"Background music created: {out}")
+    print(f"Background music: {out}")
     return out
 
 
-# ── Assemble the final MP4 ────────────────────────────────────────────────────
-def assemble_video(data):
-    fruit_name    = data["fruit"]
+# ── Assemble final MP4 ────────────────────────────────────────────────────────
+def assemble_video(data, srt_path):
     voiceover_mp3 = "output/audio/final_voiceover.mp3"
     music_mp3     = "output/audio/background_music.mp3"
-    srt_file      = "output/subtitles.srt"
     out_mp4       = "output/final_video.mp4"
 
-    total_duration = get_duration(voiceover_mp3)
-    print(f"Total video duration: {total_duration:.1f}s")
+    total_dur = get_duration(voiceover_mp3)
+    print(f"Total duration: {total_dur:.1f}s")
 
-    # Collect available images (up to 5)
-    image_files = []
-    for i in range(1, 6):
-        p = f"output/images/scene_{i}.png"
-        if os.path.exists(p):
-            image_files.append(p)
-
+    # Collect images
+    image_files = [f"output/images/scene_{i}.png" for i in range(1, 6)
+                   if os.path.exists(f"output/images/scene_{i}.png")]
     if not image_files:
         raise FileNotFoundError("No images found in output/images/")
 
-    # Each image shown for equal share of total duration
-    img_duration = total_duration / len(image_files)
+    img_dur = total_dur / len(image_files)
+    n       = len(image_files)
 
     # ── Build FFmpeg command ──────────────────────────────────────────────────
     cmd = ["ffmpeg", "-y"]
 
-    # Image inputs (loop each for its duration)
+    # Image inputs
     for img in image_files:
-        cmd += ["-loop", "1", "-t", str(img_duration), "-i", img]
+        cmd += ["-loop", "1", "-t", str(img_dur), "-i", img]
 
-    # Audio inputs
+    # Audio inputs  (index n = voiceover, n+1 = music)
     cmd += ["-i", voiceover_mp3, "-i", music_mp3]
 
-    n   = len(image_files)
-    vai = n      # voiceover audio index
-    mai = n + 1  # music audio index
-
-    # Scale + pad each image to 1920x1080
+    # ── Single filter_complex with EVERYTHING inside ──────────────────────────
+    # 1. Scale every image to 1920x1080
     scale_parts = []
     for i in range(n):
         scale_parts.append(
             f"[{i}:v]scale=1920:1080:"
             f"force_original_aspect_ratio=decrease,"
             f"pad=1920:1080:(ow-iw)/2:(oh-ih)/2,"
-            f"setsar=1[v{i}]"
+            f"setsar=1[sv{i}]"
         )
 
-    # Concatenate scaled video streams
-    concat_in  = "".join(f"[v{i}]" for i in range(n))
-    concat_out = f"{concat_in}concat=n={n}:v=1:a=0[vraw]"
+    # 2. Concat scaled streams → [vconcat]
+    concat_in  = "".join(f"[sv{i}]" for i in range(n))
+    concat_out = f"{concat_in}concat=n={n}:v=1:a=0[vconcat]"
 
-    # Mix voiceover (full volume) + music (very soft)
+    # 3. Burn subtitles into [vconcat] → [vout]
+    #    Use absolute path and escape colons for FFmpeg filter syntax
+    srt_escaped = srt_path.replace("\\", "/").replace(":", "\\:")
+    subtitle_style = (
+        "FontName=Arial,FontSize=24,Bold=1,"
+        "PrimaryColour=&H00FFFFFF,"
+        "OutlineColour=&H00000000,"
+        "BackColour=&H99000000,"
+        "BorderStyle=3,Outline=2,Shadow=0,"
+        "Alignment=2,MarginV=50,MarginL=60,MarginR=60"
+    )
+    sub_filter = (
+        f"[vconcat]subtitles='{srt_escaped}':"
+        f"force_style='{subtitle_style}'[vout]"
+    )
+
+    # 4. Mix voiceover + background music → [aout]
     audio_mix = (
-        f"[{vai}:a][{mai}:a]"
+        f"[{n}:a][{n+1}:a]"
         f"amix=inputs=2:weights='1 0.12':duration=first[aout]"
     )
 
-    filter_complex = ";".join(scale_parts + [concat_out, audio_mix])
-
-    cmd += ["-filter_complex", filter_complex]
-    cmd += ["-map", "[vraw]", "-map", "[aout]"]
-
-    # ── Subtitle overlay ──────────────────────────────────────────────────────
-    # Style: white bold text, black outline, semi-transparent dark bar behind
-    subtitle_style = (
-        "FontName=Arial,"
-        "FontSize=24,"
-        "Bold=1,"
-        "PrimaryColour=&H00FFFFFF,"    # white text
-        "OutlineColour=&H00000000,"    # black outline
-        "BackColour=&H99000000,"       # dark semi-transparent background box
-        "BorderStyle=3,"               # box style (3 = opaque box)
-        "Outline=2,"
-        "Shadow=0,"
-        "Alignment=2,"                 # bottom-centre
-        "MarginV=50,"                  # distance from bottom edge
-        "MarginL=80,"
-        "MarginR=80"
-    )
-
-    vf_filter = (
-        f"subtitles={srt_file}:"
-        f"force_style='{subtitle_style}'"
-    )
+    # Combine all filter parts
+    filter_complex = ";".join(scale_parts + [concat_out, sub_filter, audio_mix])
 
     cmd += [
-        "-vf", vf_filter,
+        "-filter_complex", filter_complex,
+        "-map", "[vout]",   # video with subtitles burned in
+        "-map", "[aout]",   # mixed audio
         "-c:v", "libx264",
         "-preset", "fast",
         "-crf", "22",
@@ -230,39 +183,34 @@ def assemble_video(data):
         out_mp4
     ]
 
-    print("Assembling video...")
+    print("Assembling video (this takes 1-2 minutes)...")
     result = subprocess.run(cmd, capture_output=True, text=True)
 
     if result.returncode == 0:
         size_mb = os.path.getsize(out_mp4) / 1024 / 1024
         print(f"Video ready: {out_mp4} ({size_mb:.1f} MB)")
     else:
-        # Print last 3000 chars of stderr for debugging
-        print("FFmpeg error:")
+        print("FFmpeg error output:")
         print(result.stderr[-3000:])
-        raise RuntimeError("Video assembly failed — see error above")
+        raise RuntimeError("Video assembly failed")
 
 
 # ── Main ─────────────────────────────────────────────────────────────────────
 if __name__ == "__main__":
     data = load_video_data()
+    print(f"=== Assembling video for: {data['fruit']} ===")
 
-    print("=== Step 4: Assembling Video ===")
-    print(f"Fruit: {data['fruit']}")
+    # 1. Accurate subtitles from real audio durations
+    srt_path = create_subtitles(data)
 
-    # 1. Build accurate subtitle file from real audio durations
-    create_subtitles(data)
-
-    # 2. Get total audio duration for music length
+    # 2. Background music matching voiceover length
     total_dur = get_duration("output/audio/final_voiceover.mp3")
-
-    # 3. Generate background music
     create_background_music(total_dur)
 
-    # 4. Assemble everything into final MP4
-    assemble_video(data)
+    # 3. Assemble everything — one filter_complex, no conflicts
+    assemble_video(data, srt_path)
 
-    print("\nDone! Files ready:")
-    print("  output/final_video.mp4")
-    print("  output/thumbnail.jpg")
-    print("  output/subtitles.srt")
+    print("\nAll done!")
+    print("  output/final_video.mp4  — ready to upload")
+    print("  output/thumbnail.jpg    — ready to upload")
+    print("  output/subtitles.srt    — subtitle file")
