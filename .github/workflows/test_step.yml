@@ -1,1 +1,114 @@
 
+name: Test Single Step
+
+on:
+  workflow_dispatch:
+    inputs:
+      step:
+        description: 'Which step to test?'
+        required: true
+        type: choice
+        options:
+          - 'step_1_script'
+          - 'step_2_voice'
+          - 'step_3_images'
+          - 'step_4_video'
+          - 'step_5_upload'
+          - 'all_except_upload'
+      fruit:
+        description: 'Test fruit (leave blank for next in list)'
+        required: false
+        default: ''
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Install system deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg espeak-ng
+
+      - name: Install Python deps
+        run: pip install -r requirements.txt
+
+      - name: Override fruit (if provided)
+        if: ${{ inputs.fruit != '' }}
+        run: |
+          echo "${{ inputs.fruit }}" > fruits_list.txt
+          echo "" > fruits_done.txt
+          echo "Testing with fruit: ${{ inputs.fruit }}"
+
+      - name: Run Step 1 - Script
+        if: ${{ inputs.step == 'step_1_script' || inputs.step == 'all_except_upload' }}
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: python scripts/1_generate_script.py
+
+      - name: Run Step 2 - Voice
+        if: ${{ inputs.step == 'step_2_voice' || inputs.step == 'all_except_upload' }}
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: |
+          if [ ! -f output/video_data.json ]; then
+            echo "Running Step 1 first since script doesn't exist..."
+            python scripts/1_generate_script.py
+          fi
+          python scripts/2_generate_voice.py
+
+      - name: Run Step 3 - Images
+        if: ${{ inputs.step == 'step_3_images' || inputs.step == 'all_except_upload' }}
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: |
+          if [ ! -f output/video_data.json ]; then
+            python scripts/1_generate_script.py
+          fi
+          python scripts/3_generate_images.py
+
+      - name: Run Step 4 - Video Assembly
+        if: ${{ inputs.step == 'step_4_video' || inputs.step == 'all_except_upload' }}
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: |
+          if [ ! -f output/video_data.json ]; then
+            python scripts/1_generate_script.py
+            python scripts/2_generate_voice.py
+            python scripts/3_generate_images.py
+          fi
+          python scripts/4_assemble_video.py
+
+      - name: Run Step 5 - Upload
+        if: ${{ inputs.step == 'step_5_upload' }}
+        env:
+          YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
+          YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
+          YOUTUBE_REFRESH_TOKEN: ${{ secrets.YOUTUBE_REFRESH_TOKEN }}
+        run: python scripts/5_upload_youtube.py
+
+      - name: Show generated files
+        if: ${{ always() }}
+        run: |
+          echo "=== Files generated ==="
+          find output -type f 2>/dev/null | head -30 || echo "No output folder"
+          echo ""
+          echo "=== Video data preview ==="
+          cat output/video_data.json 2>/dev/null | head -50 || echo "No video_data.json"
+
+      - name: Upload artifacts (download from Actions tab)
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-output
+          path: output/
+          retention-days: 7
