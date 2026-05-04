@@ -1,119 +1,183 @@
 # 🍎 Fruits with Facts — Full Automation Setup Guide
 
-> **Fully automated YouTube channel. Zero human involvement after setup.**
-> Runs 3 videos/week automatically. 100% free. No watermarks.
+> **Fully automated faceless YouTube channel. Zero human involvement after setup.**
+> Posts 3 videos/week automatically. 100% free. No watermarks. No credit card.
 
------
+---
 
-## ⏱️ Setup Time: ~60 minutes (one-time only)
+## 🛠️ What Gets Built
 
------
+Every Monday, Wednesday, and Friday at 9AM UTC, this pipeline runs automatically:
 
-## 📋 PHASE 1: Create Your GitHub Repository (10 min)
+```
+GitHub Actions (Free)
+       ↓
+Google Gemini AI  →  Writes script + title + description + tags
+       ↓
+espeak-ng         →  Converts script to MP3 voiceover (no account needed)
+       ↓
+Pollinations AI   →  Generates 5 fruit images + thumbnail (no account needed)
+       ↓
+FFmpeg            →  Assembles MP4 with burned-in English subtitles
+       ↓
+YouTube API       →  Uploads video with title, description, tags, hashtags
+```
+
+---
+
+## 📁 Repository File Structure
+
+```
+fruits-with-facts/
+│
+├── .github/
+│   └── workflows/
+│       └── generate_video.yml       ← Scheduler (Mon/Wed/Fri 9AM)
+│
+├── scripts/
+│   ├── 1_generate_script.py         ← Gemini AI writes the script
+│   ├── 2_generate_voice.py          ← espeak-ng generates voiceover
+│   ├── 3_generate_images.py         ← Pollinations AI generates images
+│   ├── 4_assemble_video.py          ← FFmpeg builds MP4 + subtitles
+│   └── 5_upload_youtube.py          ← Uploads to YouTube
+│
+├── fruits_list.txt                  ← 100 fruits to cover (pre-filled)
+├── fruits_done.txt                  ← Auto-updated after each video
+└── requirements.txt                 ← Python dependencies
+```
+
+---
+
+## 💰 Cost Summary — Everything Free
+
+| Tool | Purpose | Account? | Card? |
+|------|---------|----------|-------|
+| GitHub Actions | Runs automation | GitHub account | ❌ None |
+| Google Gemini API | Script writing | Google account | ❌ None |
+| espeak-ng | Voice generation | ❌ None at all | ❌ None |
+| Pollinations AI | Image generation | ❌ None at all | ❌ None |
+| FFmpeg | Video assembly | ❌ None at all | ❌ None |
+| YouTube Data API | Video upload | Google account | ❌ None |
+
+**Total cost: $0 forever.**
+
+---
+
+## 🔑 GitHub Secrets You Need (Only 4)
+
+| Secret Name | Where To Get It |
+|-------------|----------------|
+| `GEMINI_API_KEY` | aistudio.google.com |
+| `YOUTUBE_CLIENT_ID` | Google Cloud Console → Credentials |
+| `YOUTUBE_CLIENT_SECRET` | Google Cloud Console → Credentials |
+| `YOUTUBE_REFRESH_TOKEN` | One-time OAuth step (see Phase 3) |
+
+---
+
+## 📋 PHASE 1 — Create GitHub Repository (10 min)
 
 ### Step 1.1 — Create GitHub Account
-
 1. Go to **github.com**
-1. Click **Sign Up**
-1. Create your free account
+2. Click **Sign Up** and create your free account
 
 ### Step 1.2 — Create New Repository
-
-1. Click the **+** icon (top right) → **New repository**
-1. Repository name: `fruits-with-facts`
-1. Set to **Private** (to protect your API keys)
-1. Click **Create repository**
+1. Click **+** icon (top right) → **New repository**
+2. Name: `fruits-with-facts`
+3. Set to **Private** (protects your API keys)
+4. Click **Create repository**
 
 ### Step 1.3 — Upload All Files
+For each file, click **Add file → Create new file** in your repo:
 
-For each file listed below, click **Add file → Create new file**:
+| File path to type in GitHub | File to copy content from |
+|-----------------------------|--------------------------|
+| `.github/workflows/generate_video.yml` | generate_video.yml |
+| `scripts/1_generate_script.py` | 1_generate_script.py |
+| `scripts/2_generate_voice.py` | 2_generate_voice.py |
+| `scripts/3_generate_images.py` | 3_generate_images.py |
+| `scripts/4_assemble_video.py` | 4_assemble_video.py |
+| `scripts/5_upload_youtube.py` | 5_upload_youtube.py |
+| `requirements.txt` | requirements.txt |
+| `fruits_list.txt` | fruits_list.txt |
+| `fruits_done.txt` | Leave completely empty |
 
-|File Path                             |Content                |
-|--------------------------------------|-----------------------|
-|`.github/workflows/generate_video.yml`|Copy from provided file|
-|`scripts/1_generate_script.py`        |Copy from provided file|
-|`scripts/2_generate_voice.py`         |Copy from provided file|
-|`scripts/3_generate_images.py`        |Copy from provided file|
-|`scripts/4_assemble_video.py`         |Copy from provided file|
-|`scripts/5_upload_youtube.py`         |Copy from provided file|
-|`requirements.txt`                    |Copy from provided file|
-|`fruits_list.txt`                     |Copy from provided file|
-|`fruits_done.txt`                     |Leave empty            |
+> ⚠️ For `.github/workflows/generate_video.yml` — type the full path
+> including folders in the filename box. GitHub auto-creates the folders
+> as you type the `/` slashes.
 
------
+After uploading, click the **Actions** tab in your repo.
+You should now see **Generate & Upload Fruits Video** listed.
+If you don't see it, the workflow file is in the wrong location — recheck the path.
 
-## 📋 PHASE 2: Get Your Free API Keys (20 min)
+---
 
-### Step 2.1 — Anthropic API Key (For Script Writing)
+## 📋 PHASE 2 — Get Free Gemini API Key (5 min)
 
-1. Go to **console.anthropic.com**
-1. Sign up for free account
-1. Click **API Keys** → **Create Key**
-1. Copy the key (starts with `sk-ant-...`)
-1. ⚠️ Free tier gives $5 credit (~500 videos worth)
+1. Go to **aistudio.google.com**
+2. Sign in with your **Google account**
+3. Click **Get API Key → Create API key**
+4. Select your Google Cloud project → Click **Create**
+5. Copy the key — it starts with `AIza...`
 
-### Step 2.2 — Hugging Face API Key (For Voice + Images)
+> ✅ Completely free. No credit card. 1,500 requests/day free tier.
 
-1. Go to **huggingface.co**
-1. Sign up for free account
-1. Click your avatar → **Settings → Access Tokens**
-1. Click **New token** → Name it `fruits-bot` → Role: **Read**
-1. Copy the token (starts with `hf_...`)
-1. ⚠️ Free tier: 1000 requests/day — enough for 3 videos/week
+---
 
------
+## 📋 PHASE 3 — YouTube API Setup (25 min)
 
-## 📋 PHASE 3: YouTube API Setup (20 min)
-
-> This is the most complex step. Follow carefully.
+This is the most involved phase. Follow each step carefully.
 
 ### Step 3.1 — Create Google Cloud Project
-
 1. Go to **console.cloud.google.com**
-1. Click **Select a project** → **New Project**
-1. Name: `FruitsWithFacts` → Click **Create**
-1. Make sure this project is selected
+2. Click **Select a project** (top bar) → **New Project**
+3. Name it `FruitsWithFacts` → Click **Create**
+4. Make sure this new project is selected in the top bar
 
 ### Step 3.2 — Enable YouTube Data API
-
 1. Go to **APIs & Services → Library**
-1. Search for **YouTube Data API v3**
-1. Click it → Click **Enable**
+2. Search **YouTube Data API v3**
+3. Click it → Click **Enable**
 
-### Step 3.3 — Create OAuth Credentials
+### Step 3.3 — Configure OAuth Consent Screen
+1. Go to **APIs & Services → OAuth consent screen**
+2. Choose **External** → Click **Create**
+3. Fill in:
+   - App name: `FruitsWithFacts`
+   - User support email: your Gmail
+   - Developer contact email: your Gmail
+4. Click **Save and Continue**
+5. On the **Scopes** page → click **Save and Continue** (skip)
+6. On the **Test Users** page:
+   - Click **+ Add Users**
+   - Enter your Gmail address
+   - Click **Add** then **Save and Continue**
+7. Click **Back to Dashboard**
 
+### Step 3.4 — Create OAuth Credentials
 1. Go to **APIs & Services → Credentials**
-1. Click **+ Create Credentials → OAuth client ID**
-1. If asked to configure consent screen:
-- Click **Configure Consent Screen**
-- Choose **External** → Click **Create**
-- App name: `Fruits With Facts Bot`
-- Your email for support
-- Click **Save and Continue** (skip all optional fields)
-- On **Scopes** page → Click **Save and Continue**
-- On **Test Users** → Add your Gmail → **Save and Continue**
-- Click **Back to Dashboard**
-1. Back at Credentials → **+ Create Credentials → OAuth client ID**
-1. Application type: **Desktop app**
-1. Name: `FruitsBot`
-1. Click **Create**
-1. **Download the JSON file** (click the download icon)
-1. Save your **Client ID** and **Client Secret** from the popup
+2. Click **+ Create Credentials → OAuth client ID**
+3. Application type: **Desktop app**
+4. Name: `FruitsBot`
+5. Click **Create**
+6. A popup shows your **Client ID** and **Client Secret** — save both
 
-### Step 3.4 — Get Your Refresh Token
+### Step 3.5 — Get Your Refresh Token
 
-1. Go to this URL (replace YOUR_CLIENT_ID with yours):
-
+**Open this URL in your browser** (replace `YOUR_CLIENT_ID`):
 ```
-https://accounts.google.com/o/oauth2/v2/auth?client_id=YOUR_CLIENT_ID&redirect_uri=urn:ietf:wg:oauth:2.0:oob&response_type=code&scope=https://www.googleapis.com/auth/youtube.upload https://www.googleapis.com/auth/youtube&access_type=offline&prompt=consent
+https://accounts.google.com/o/oauth2/v2/auth?client_id=YOUR_CLIENT_ID&redirect_uri=urn:ietf:wg:oauth:2.0:oob&response_type=code&scope=https://www.googleapis.com/auth/youtube.upload+https://www.googleapis.com/auth/youtube&access_type=offline&prompt=consent
 ```
 
-1. Login with your YouTube channel Google account
-1. Click **Allow**
-1. Copy the **authorization code** shown on screen
-1. Now exchange it for a refresh token. Go to this website: **reqbin.com/curl**
-1. Paste this (replace the values):
+1. Sign in with your YouTube Google account
+2. If you see **"This app isn't verified"** warning:
+   - Click **Advanced**
+   - Click **Go to FruitsWithFacts (unsafe)**
+   - Click **Allow**
+3. Copy the **authorization code** shown on screen
 
+**Now exchange the code for a refresh token:**
+
+Go to **reqbin.com/curl** and paste this (replace the 3 values):
 ```
 curl -X POST https://oauth2.googleapis.com/token \
   -d "code=PASTE_AUTH_CODE_HERE" \
@@ -123,148 +187,158 @@ curl -X POST https://oauth2.googleapis.com/token \
   -d "grant_type=authorization_code"
 ```
 
-1. Click **Run**
-1. Copy the **refresh_token** value from the response
+Click **Run**. You'll get a JSON response:
+```json
+{
+  "access_token": "...",
+  "refresh_token": "1//0g...",
+  "token_type": "Bearer"
+}
+```
 
------
+Copy the **refresh_token** value.
 
-## 📋 PHASE 4: Add Secrets to GitHub (5 min)
+> ⚠️ The authorization code expires in a few minutes.
+> Complete the curl step immediately after copying the code.
 
-1. Go to your GitHub repository
-1. Click **Settings → Secrets and variables → Actions**
-1. Click **New repository secret** for each:
+---
 
-|Secret Name            |Value                |
-|-----------------------|---------------------|
-|`ANTHROPIC_API_KEY`    |Your `sk-ant-...` key|
-|`HUGGINGFACE_API_KEY`  |Your `hf_...` token  |
-|`YOUTUBE_CLIENT_ID`    |From Google Cloud    |
-|`YOUTUBE_CLIENT_SECRET`|From Google Cloud    |
-|`YOUTUBE_REFRESH_TOKEN`|From Step 3.4        |
+## 📋 PHASE 4 — Add Secrets to GitHub (5 min)
 
------
+1. Go to your GitHub repo
+2. Click **Settings → Secrets and variables → Actions**
+3. Click **New repository secret** for each of the 4 secrets:
 
-## 📋 PHASE 5: Test Your Pipeline (5 min)
+| Name | Value |
+|------|-------|
+| `GEMINI_API_KEY` | Your `AIza...` key from Phase 2 |
+| `YOUTUBE_CLIENT_ID` | From Step 3.4 |
+| `YOUTUBE_CLIENT_SECRET` | From Step 3.4 |
+| `YOUTUBE_REFRESH_TOKEN` | From Step 3.5 |
 
-### Run it manually to test:
+> ⚠️ Secret names must be EXACT — capital letters, underscores, no spaces.
 
-1. In your GitHub repo, click **Actions** tab
-1. Click **Generate & Upload Fruits Video**
-1. Click **Run workflow → Run workflow**
-1. Watch the logs in real-time
-1. ✅ If all 5 steps show green checkmarks — you’re done!
+---
 
-### Check your YouTube channel:
+## 📋 PHASE 5 — Test Your Pipeline (5 min)
 
-- The first video should appear within minutes of the workflow completing
-- Title will be something like: “5 Amazing Facts About Apple 🍎”
+1. In your GitHub repo click the **Actions** tab
+2. Click **Generate & Upload Fruits Video** in the left sidebar
+3. Click **Run workflow → Run workflow** (green button, top right)
+4. Watch the live logs — each step should show a green checkmark
+5. Check your YouTube channel — the first video appears within minutes!
 
------
+### What Each Step Does in the Logs
+```
+Step 1 - Generate Script    → "Next fruit: Apple / Script generated successfully"
+Step 2 - Generate Voice     → "All voice segments done!"
+Step 3 - Generate Images    → "All 5 images generated!"
+Step 4 - Assemble Video     → "Video ready: output/final_video.mp4"
+Step 5 - Upload to YouTube  → "SUCCESS! ... is now live on YouTube!"
+```
+
+---
 
 ## 📅 Automatic Schedule
 
-Once setup is complete, videos post automatically:
+Once setup is complete, videos post with zero human involvement:
 
-|Day      |Time       |Action                        |
-|---------|-----------|------------------------------|
-|Monday   |9:00 AM UTC|Auto-generates + uploads video|
-|Wednesday|9:00 AM UTC|Auto-generates + uploads video|
-|Friday   |9:00 AM UTC|Auto-generates + uploads video|
+| Day | Time | Action |
+|-----|------|--------|
+| Monday | 9:00 AM UTC | Auto-generates + uploads video |
+| Wednesday | 9:00 AM UTC | Auto-generates + uploads video |
+| Friday | 9:00 AM UTC | Auto-generates + uploads video |
 
-**That’s 3 videos/week = 12 videos/month = 144 videos/year!**
+**3 videos/week = 12/month = 144/year**
+At 3 per week, your 100 pre-loaded fruits cover **33 weeks of content**.
 
-The system will automatically go through all 100 fruits in `fruits_list.txt`.
-At 3/week, that’s **33 weeks of content** without any intervention.
+---
 
------
+## 🔧 Customisation
 
-## 🔧 Customization Options
-
-### Change posting frequency:
-
-Edit `.github/workflows/generate_video.yml` line:
-
+### Change posting days/frequency
+Edit `.github/workflows/generate_video.yml`:
 ```yaml
-- cron: '0 9 * * 1,3,5'   # Mon, Wed, Fri
-# Change to daily:
-- cron: '0 9 * * *'        # Every day
-# Change to weekly:
-- cron: '0 9 * * 1'        # Every Monday only
+- cron: '0 9 * * 1,3,5'    # Mon, Wed, Fri (default)
+- cron: '0 9 * * *'         # Every day
+- cron: '0 9 * * 1'         # Once a week (Monday only)
 ```
 
-### Change video voice:
-
+### Change video voice style
 Edit `scripts/2_generate_voice.py`:
-
 ```python
-"voice": "af_sarah"    # Female voice
-"voice": "af_bella"    # Different female voice
-"voice": "am_adam"     # Male voice
+"-v", "en-us+f3"    # Female voice (default)
+"-v", "en-us+m3"    # Male voice
+"-v", "en-gb"       # British accent
+"-s", "148"         # Speed (130=slow, 148=normal, 165=fast)
 ```
 
-### Add more fruits:
+### Change subtitle appearance
+Edit `scripts/4_assemble_video.py` — find `subtitle_style`:
+```python
+"FontSize=24"              # Bigger = 28, Smaller = 20
+"PrimaryColour=&H00FFFF00" # Yellow text instead of white
+"MarginV=50"               # Higher number = higher on screen
+```
 
-Just add more lines to `fruits_list.txt` in GitHub
+### Add more fruits
+Simply add new lines to `fruits_list.txt` in GitHub.
+The bot picks them up automatically on the next run.
 
-### Change upload privacy:
-
+### Change video privacy
 Edit `scripts/5_upload_youtube.py`:
-
 ```python
-"privacyStatus": "public"    # Immediate public
-"privacyStatus": "unlisted"  # Only with link
-"privacyStatus": "private"   # Only you
+"privacyStatus": "public"    # Live immediately (default)
+"privacyStatus": "unlisted"  # Only via direct link
+"privacyStatus": "private"   # Only you can see
 ```
 
------
+---
 
 ## 🆘 Troubleshooting
 
-### ❌ “ANTHROPIC_API_KEY not set”
+### ❌ "GEMINI_API_KEY not set"
+→ Add the secret in GitHub → Settings → Secrets and variables → Actions
 
-→ Double-check you added it in GitHub Secrets (Phase 4)
+### ❌ "invalid_grant / Bad Request" on YouTube upload
+Your refresh token expired. Fix:
+1. Go to myaccount.google.com/permissions → remove FruitsWithFacts access
+2. Repeat Step 3.5 to get a new authorization code
+3. Run the curl command immediately to get a new refresh token
+4. Update `YOUTUBE_REFRESH_TOKEN` secret in GitHub
+5. Re-run the workflow
 
-### ❌ “Upload init failed: 401”
+### ❌ "This app isn't verified" on Google login
+→ Click **Advanced → Go to FruitsWithFacts (unsafe) → Allow**
+→ This is safe — you built the app yourself
 
-→ Your YouTube refresh token expired. Repeat Step 3.4
+### ❌ Workflow not showing in Actions tab
+→ The `.github/workflows/generate_video.yml` file is missing or misplaced
+→ It must be at exactly that path on the main branch
 
-### ❌ “Model loading” timeout on Hugging Face
+### ❌ "Simple and complex filtering cannot be used together"
+→ You have an old version of `4_assemble_video.py`
+→ Replace it with the latest version — all filters are now in one filter_complex
 
-→ Free tier models sleep. The script retries 3 times automatically.
-If still failing, re-run the workflow manually.
+### ❌ Images look like plain colour gradients
+→ Pollinations AI timed out — the script uses gradient fallback automatically
+→ Re-run the workflow; Pollinations usually works on retry
 
-### ❌ FFmpeg video assembly error
+### ❌ All fruits completed
+→ Add more fruit names to `fruits_list.txt` (one per line)
 
-→ Check if all 5 images were generated in `output/images/`
-The script has fallback image generation built in.
+---
 
-### ❌ All fruits done
+## 🎉 You're Done!
 
-→ Add more fruits to `fruits_list.txt`
+After one-time setup, your channel runs itself forever:
 
------
+✅ Picks next fruit from list automatically
+✅ Writes real educational script with Gemini AI
+✅ Generates natural voiceover audio
+✅ Creates 5 AI fruit images + YouTube thumbnail
+✅ Assembles MP4 with burned-in English subtitles
+✅ Uploads with title, description, tags and hashtags
+✅ Marks fruit as done, moves to next one
 
-## 💰 Cost Summary
-
-|Service       |Free Tier        |Cost After    |
-|--------------|-----------------|--------------|
-|GitHub Actions|2,000 min/month  |$0 for our use|
-|Anthropic API |$5 credit        |~$0.003/video |
-|Hugging Face  |1,000 req/day    |Always free   |
-|YouTube API   |Unlimited uploads|Always free   |
-|**TOTAL**     |**$0**           |**< $1/month**|
-
------
-
-## 🎉 You’re Done!
-
-Your channel will now automatically:
-
-1. ✅ Pick the next fruit from your list
-1. ✅ Write an engaging 5-facts script
-1. ✅ Generate natural voiceover audio
-1. ✅ Create 5 AI-generated fruit images
-1. ✅ Assemble into a complete MP4 with captions
-1. ✅ Upload to YouTube with title, description & thumbnail
-
-**All while you sleep. 3x per week. Forever. 🚀**
+**3 videos per week. Zero effort. Forever. 🚀**
