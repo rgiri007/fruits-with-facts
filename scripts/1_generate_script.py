@@ -70,7 +70,7 @@ Write REAL facts. All voiceover fields must contain actual sentences, not instru
 
     url = (
         "https://generativelanguage.googleapis.com/v1beta/"
-        f"models/gemini-1.5-flash:generateContent?key={api_key}"
+        f"models/gemini-2.5-flash:generateContent?key={api_key}"
     )
     payload = {
         "contents": [{"parts": [{"text": prompt}]}],
