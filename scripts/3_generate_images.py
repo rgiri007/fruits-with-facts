@@ -1,8 +1,8 @@
-“””
+"""
 Step 3: Generate fruit images using Pollinations AI
 100% FREE - No account needed - No API key - No watermark
 Simply calls a free public URL API
-“””
+"""
 
 import json
 import os
