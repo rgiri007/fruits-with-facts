@@ -86,9 +86,9 @@ IMPORTANT RULES:
 - Tone should be enthusiastic, educational, and friendly"""
 
     url = (
-        "https://generativelanguage.googleapis.com/v1beta/"
-        f"models/gemini-1.5-flash:generateContent?key={api_key}"
-    )
+    "https://generativelanguage.googleapis.com/v1beta/"
+    f"models/gemini-pro:generateContent?key={api_key}"
+)
 
     payload = {
         "contents": [{"parts": [{"text": prompt}]}],
