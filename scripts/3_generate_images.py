@@ -15,19 +15,19 @@ import urllib.parse
 # ── Load video data ───────────────────────────────────────────────────────────
 
 def load_video_data():
-with open(“output/video_data.json”, “r”) as f:
+with open("output/video_data.json", "r") as f:
 return json.load(f)
 
 # ── Generate image using Pollinations AI ─────────────────────────────────────
 
 def generate_image(prompt, output_path, index):
-“””
+"""
 Pollinations AI - completely free, no account, no API key, no watermark
 Just a simple URL call!
-“””
+"""
 enhanced_prompt = (
-f”{prompt}, ultra realistic, 4k, high quality, “
-“sharp focus, professional photography, vibrant colors”
+f"{prompt}, ultra realistic, 4k, high quality, "
+"sharp focus, professional photography, vibrant colors"
 )
 
 ```
@@ -125,10 +125,10 @@ print(f"Thumbnail saved: {output_path}")
 
 # ── Main ──────────────────────────────────────────────────────────────────────
 
-if **name** == “**main**”:
+if **name** == "**main**":
 data = load_video_data()
-fruit_name = data[“fruit”]
-image_prompts = data[“image_prompts”]
+fruit_name = data["fruit"]
+image_prompts = data["image_prompts"]
 
 ```
 os.makedirs("output/images", exist_ok=True)
