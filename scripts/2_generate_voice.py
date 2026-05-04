@@ -16,11 +16,11 @@ def load_video_data():
         return json.load(f)
 
 
-async def edge_tts_generate(text, output_path, voice="en-US-AriaNeural"):
+async def edge_tts_generate(text, output_path, voice="en-US-AndrewNeural"):
     """
     Microsoft Edge TTS - free, no account, very natural human voice
     Best voices:
-      en-US-AriaNeural     - Warm friendly female (best for facts)
+      en-US-AndrewNeural   - Conversational warm male (CURRENT)
       en-US-JennyNeural    - Clear energetic female
       en-US-GuyNeural      - Natural male voice
       en-GB-SoniaNeural    - British female
