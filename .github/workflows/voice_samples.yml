@@ -1,0 +1,33 @@
+name: Generate Voice Samples
+
+on:
+  workflow_dispatch:
+
+jobs:
+  voice-samples:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg espeak-ng
+          pip install edge-tts
+
+      - name: Generate voice samples
+        run: python scripts/generate_voice_samples.py
+
+      - name: Upload samples
+        uses: actions/upload-artifact@v4
+        with:
+          name: voice-samples
+          path: voice_samples/
+          retention-days: 14
