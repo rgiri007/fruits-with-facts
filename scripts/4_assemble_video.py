@@ -211,51 +211,64 @@ def create_fact_card(fruit_name, fact_num, total_facts, fact_text,
 
 
 def create_hook_card(fruit_name, hook_text, emoji, colors, bg_image_path, output_path):
+    """Minimal hook card — just fruit image with small badge. No big shapes."""
     try:
         primary = tuple(int(colors.get("primary","#FF6B35").lstrip("#")[i:i+2],16) for i in (0,2,4))
         accent  = tuple(int(colors.get("accent", "#FFE66D").lstrip("#")[i:i+2],16) for i in (0,2,4))
     except:
         primary, accent = (255,107,53), (255,230,109)
 
+    # Show fruit image clearly — no blur
     try:
         bg = Image.open(bg_image_path).resize((W, H), Image.LANCZOS)
-        bg = bg.filter(ImageFilter.GaussianBlur(radius=2))
     except:
         bg = Image.new("RGB", (W, H), primary)
 
-    overlay = Image.new("RGBA", (W, H), (0,0,0,120))
+    # Light overlay only at top/bottom for badge readability
+    overlay = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+    od = ImageDraw.Draw(overlay)
+    od.rectangle([(0, 0), (W, 180)], fill=(0, 0, 0, 130))
+    od.rectangle([(0, H-180), (W, H)], fill=(0, 0, 0, 130))
+
     card = Image.alpha_composite(bg.convert("RGBA"), overlay).convert("RGB")
     draw = ImageDraw.Draw(card)
-    draw.rectangle([(0,0),(W,160)], fill=primary)
-    draw.text((W//2, 80), "🍎 Fruits with Facts", fill=(255,255,255), anchor="mm")
-    draw.text((W//2, 680), emoji, fill=(255,255,255), anchor="mm")
-    draw.text((W//2, 820), fruit_name.upper(), fill=accent, anchor="mm")
-    draw.rounded_rectangle([(200, 920),(880, 1020)], radius=40, fill=accent)
-    draw.text((W//2, 970), "5 WILD FACTS!", fill=(30,30,30), anchor="mm")
-    draw.rounded_rectangle([(60,1080),(W-60,1380)], radius=25, fill=(255,255,255))
-    wrapped = textwrap.fill(hook_text, width=30)
-    draw.text((W//2, 1230), wrapped, fill=(20,20,20), anchor="mm", align="center")
-    draw.text((W//2, H-120), "👇 Watch till the end!", fill=(255,255,255), anchor="mm")
+
+    # Small badge top-left
+    draw.rounded_rectangle([(30, 50), (260, 130)], radius=20, fill=accent)
+    draw.text((145, 90), "INTRO", fill=(30, 30, 30), anchor="mm")
+
+    # Channel name top-right
+    draw.text((W-30, 90), "Fruits with Facts", fill=(255, 255, 255), anchor="rm")
+
+    # Bottom CTA (small)
+    draw.text((W//2, H-90), "Watch till the end!",
+              fill=(255, 255, 255), anchor="mm")
+
     card.save(output_path, "PNG", optimize=False)
 
 
 def create_outro_card(fruit_name, emoji, colors, output_path):
+    """Minimal outro — solid color background with simple text. No boxes."""
     try:
         primary = tuple(int(colors.get("primary","#FF6B35").lstrip("#")[i:i+2],16) for i in (0,2,4))
         accent  = tuple(int(colors.get("accent", "#FFE66D").lstrip("#")[i:i+2],16) for i in (0,2,4))
     except:
         primary, accent = (255,107,53), (255,230,109)
 
+    # Solid color outro
     img = Image.new("RGB", (W, H), primary)
     draw = ImageDraw.Draw(img)
-    draw.text((W//2, 400),  "Thanks for watching!", fill=(255,255,255), anchor="mm")
-    draw.text((W//2, 650),  emoji * 5,              fill=(255,255,255), anchor="mm")
-    draw.text((W//2, 850),  "FOLLOW FOR MORE",      fill=accent,        anchor="mm")
-    draw.text((W//2, 980),  "FRUIT FACTS! 🍎",      fill=(255,255,255), anchor="mm")
-    draw.rounded_rectangle([(100,1120),(W-100,1260)], radius=40, fill=accent)
-    draw.text((W//2, 1190), "👍 LIKE & SUBSCRIBE", fill=(30,30,30), anchor="mm")
-    draw.text((W//2, 1380), "Fruits with Facts",    fill=(255,255,255), anchor="mm")
-    draw.text((W//2, 1480), "#Shorts #FruitFacts",  fill=(255,255,255), anchor="mm")
+
+    # Just simple text — no boxes, no rectangles
+    draw.text((W//2, 600),  "Thanks for watching!",
+              fill=(255, 255, 255), anchor="mm")
+    draw.text((W//2, 850),  "Like & Subscribe",
+              fill=accent, anchor="mm")
+    draw.text((W//2, 1080), "for more fruity facts",
+              fill=(255, 255, 255), anchor="mm")
+    draw.text((W//2, 1350), "Fruits with Facts",
+              fill=(255, 255, 255), anchor="mm")
+
     img.save(output_path, "PNG", optimize=False)
 
 
@@ -410,16 +423,15 @@ def assemble_video(data, srt_path, music_path):
     # Then add audio + subtitles in single pass
     srt_esc = srt_path.replace("\\", "/").replace(":", "\\:")
     sub_style = (
-        "FontName=Arial Black,FontSize=18,Bold=1,"
-        "PrimaryColour=&H0000FFFF,"      # Bright YELLOW text
-        "OutlineColour=&H00000000,"       # Black outline
-        "BackColour=&H00000000,"          # Transparent background
-        "BorderStyle=1,"                  # 1 = outline only (no box)
-        "Outline=3,"                      # Thicker outline for readability
-        "Shadow=2,"
-        "Alignment=2,"                    # Bottom center
-        "MarginV=380,"                    # HIGH up from bottom (smaller area)
-        "MarginL=120,MarginR=120"         # Narrow horizontal margin
+        "FontName=Arial,FontSize=14,Bold=1,"
+        "PrimaryColour=&H00FFFFFF,"       # White text (clean)
+        "OutlineColour=&H00000000,"        # Black outline
+        "BackColour=&H00000000,"           # Transparent background
+        "BorderStyle=1,"                   # Outline only (no box)
+        "Outline=2,Shadow=1,"              # Thin outline + shadow
+        "Alignment=2,"                     # Bottom center
+        "MarginV=300,"                     # Pulled up from bottom
+        "MarginL=160,MarginR=160"          # Narrow band
     )
 
     cmd = [
