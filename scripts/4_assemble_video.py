@@ -322,7 +322,7 @@ def create_outro_card(fruit_name, emoji, colors, output_path):
     img.save(output_path, "PNG", optimize=False)
 
 
-def create_subtitles(data, thumbnail_offset=1.5):
+def create_subtitles(data, thumbnail_offset=3.0):
     vo = data["voiceover"]
     seg_names = ["hook","fact_1","fact_2","fact_3","fact_4","fact_5","outro"]
     seg_texts = [
@@ -380,7 +380,7 @@ def assemble_video(data, srt_path, music_path):
     # Add 1.5s silence at start for thumbnail intro
     voiceover_mp3_orig = "output/audio/final_voiceover.mp3"
     voiceover_mp3 = "output/audio/voiceover_with_intro.mp3"
-    THUMB_DURATION = 1.5
+    THUMB_DURATION = 3.0  # longer = better thumbnail selection by YouTube
 
     subprocess.run([
         "ffmpeg", "-y",
@@ -421,7 +421,8 @@ def assemble_video(data, srt_path, music_path):
 
     # Thumbnail intro
     if os.path.exists("output/thumbnail_vertical.png"):
-        cards_data.append(("output/thumbnail_vertical.png", THUMB_DURATION, "zoom_in"))
+        # STATIC (no animation) for first frame so YouTube picks crisp thumbnail
+        cards_data.append(("output/thumbnail_vertical.png", THUMB_DURATION, "static"))
 
     # Hook
     create_hook_card(fruit, vo["hook"], emoji, colors, scene_images[0], "output/cards/hook.png")
@@ -529,8 +530,8 @@ if __name__ == "__main__":
     data = load_video_data()
     print(f"=== Assembling: {data['fruit']} ===")
 
-    srt_path, _ = create_subtitles(data, thumbnail_offset=1.5)
-    voiceover_dur = get_duration("output/audio/final_voiceover.mp3") + 1.5
+    srt_path, _ = create_subtitles(data, thumbnail_offset=3.0)
+    voiceover_dur = get_duration("output/audio/final_voiceover.mp3") + 3.0
     music_path = get_background_music(voiceover_dur)
     assemble_video(data, srt_path, music_path)
 
