@@ -132,6 +132,84 @@ def speed_up_audio(input_path, output_path, speed=1.15):
     return result.returncode == 0
 
 
+
+# ── Translate text using Google Translate (free, no API key) ────────────────
+def translate_text(text, target_lang):
+    """
+    Translate text to target language using Google Translate's free public API.
+    No API key needed.
+    """
+    import requests
+    import urllib.parse
+
+    # Use Google Translate's mobile endpoint (free, no key)
+    url = "https://translate.googleapis.com/translate_a/single"
+    params = {
+        "client": "gtx",
+        "sl": "en",
+        "tl": target_lang,
+        "dt": "t",
+        "q": text
+    }
+
+    try:
+        r = requests.get(url, params=params, timeout=15)
+        if r.status_code == 200:
+            data = r.json()
+            # Response is a deeply nested array; first element has translation chunks
+            translated = "".join([chunk[0] for chunk in data[0] if chunk[0]])
+            print(f"  Translated: {text[:40]}... → {translated[:40]}...")
+            return translated
+    except Exception as e:
+        print(f"  Translation error: {e}")
+
+    print(f"  Falling back to original English text")
+    return text
+
+
+# ── Generate segment with language support ──────────────────────────────────
+def generate_segment_lang(text, output_path, lang="en", voice_tld="com"):
+    """gTTS supports many languages directly."""
+    print(f"  Generating with gTTS (lang={lang})...")
+
+    try:
+        from gtts import gTTS
+        # For non-English, tld doesn't matter — just use the language
+        if lang == "en":
+            tts = gTTS(text=text, lang=lang, tld=voice_tld, slow=False)
+        else:
+            tts = gTTS(text=text, lang=lang, slow=False)
+        tts.save(output_path)
+
+        if os.path.exists(output_path) and os.path.getsize(output_path) > 1000:
+            print(f"  SUCCESS: {output_path}")
+            return "gtts"
+    except Exception as e:
+        print(f"  gTTS error: {e}")
+
+    # Fallback to espeak
+    print(f"  WARNING: gTTS failed, using espeak fallback")
+    wav = output_path.replace(".mp3", ".wav")
+    espeak_voice = "en-us+m3" if lang == "en" else "en"
+    r = subprocess.run([
+        "espeak-ng", "-v", espeak_voice,
+        "-s", "155", "-p", "55", "-a", "180",
+        "-w", wav, text
+    ], capture_output=True)
+
+    if r.returncode == 0:
+        subprocess.run([
+            "ffmpeg", "-y", "-i", wav,
+            "-codec:a", "libmp3lame", "-qscale:a", "2",
+            output_path
+        ], capture_output=True)
+        if os.path.exists(wav):
+            os.remove(wav)
+        return "espeak"
+
+    return "failed"
+
+
 if __name__ == "__main__":
     data = load_video_data()
     vo = data["voiceover"]
@@ -139,15 +217,24 @@ if __name__ == "__main__":
 
     os.makedirs("output/audio/segments", exist_ok=True)
 
-    print(f"=== Generating voice for: {fruit} ===")
-    print(f"Engine: gTTS (Google) - reliable, natural, free\n")
+    # ── LANGUAGE CONFIGURATION ────────────────────────────────────────────────
+    # Set VOICE_LANG to the language you want for the SPOKEN audio.
+    # The script (subtitles, title, description) stays in English.
+    # 
+    # Supported language codes:
+    #   "en"  → English (default)
+    #   "ne"  → Nepali
+    #   "hi"  → Hindi
+    #   "bn"  → Bengali
+    #   "ta"  → Tamil
+    #   "te"  → Telugu
+    #   "ur"  → Urdu
+    VOICE_LANG = "ne"  # Set to "ne" for Nepali, "en" for English
+    VOICE_TLD = "com"  # Only matters for English
 
-    # Voice variants you can try by changing the tld:
-    #   "com"    → US accent (default)
-    #   "co.uk"  → British accent
-    #   "com.au" → Australian accent
-    #   "co.in"  → Indian accent
-    VOICE_TLD = "com"
+    print(f"=== Generating voice for: {fruit} ===")
+    print(f"Engine: gTTS (Google) - reliable, natural, free")
+    print(f"Voice language: {VOICE_LANG}\n")
 
     segments = [
         ("hook",   vo["hook"]),
@@ -159,13 +246,23 @@ if __name__ == "__main__":
         ("outro",  vo["outro"]),
     ]
 
+    # If voice language is non-English, translate text first
+    if VOICE_LANG != "en":
+        print(f"Translating script to {VOICE_LANG}...")
+        translated_segments = []
+        for name, text in segments:
+            translated = translate_text(text, VOICE_LANG)
+            translated_segments.append((name, translated))
+        segments = translated_segments
+        print("Translation complete!\n")
+
     segment_files = []
     methods_used = []
     for name, text in segments:
         out_raw = f"output/audio/segments/{name}_raw.mp3"
         out = f"output/audio/segments/{name}.mp3"
         print(f"\nSegment: {name}")
-        method = generate_segment(text, out_raw, voice_tld=VOICE_TLD)
+        method = generate_segment_lang(text, out_raw, lang=VOICE_LANG, voice_tld=VOICE_TLD)
         methods_used.append(method)
 
         # Speed up gTTS audio for energetic Shorts feel
