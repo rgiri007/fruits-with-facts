@@ -155,48 +155,57 @@ def create_animated_clip(card_image_path, duration, output_path, anim_type="zoom
 # ── Card creation functions (unchanged) ──────────────────────────────────────
 def create_fact_card(fruit_name, fact_num, total_facts, fact_text,
                      emoji, colors, bg_image_path, output_path):
+    """
+    Minimal fact card — just shows the fruit image with:
+    - Small "FACT N/5" badge at top-left
+    - Channel name + hashtag at top-right
+    - Small progress dots at the bottom
+    - NO big circle or white rectangle covering the fruit!
+    Subtitles handle the actual fact text.
+    """
     try:
         primary = tuple(int(colors.get("primary","#FF6B35").lstrip("#")[i:i+2],16) for i in (0,2,4))
         accent  = tuple(int(colors.get("accent", "#FFE66D").lstrip("#")[i:i+2],16) for i in (0,2,4))
     except:
         primary, accent = (255,107,53), (255,230,109)
 
+    # Use the fruit image as background — NO blur (so it stays crisp)
     try:
         bg = Image.open(bg_image_path).resize((W, H), Image.LANCZOS)
-        bg = bg.filter(ImageFilter.GaussianBlur(radius=4))
     except:
         bg = Image.new("RGB", (W, H), primary)
 
-    overlay = Image.new("RGBA", (W, H), (0, 0, 0, 160))
+    # Very light overlay only at top/bottom for badge readability
+    overlay = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+    od = ImageDraw.Draw(overlay)
+    # Top dark gradient (only top 200px)
+    od.rectangle([(0, 0), (W, 180)], fill=(0, 0, 0, 130))
+    # Bottom dark gradient (only bottom 200px for progress dots)
+    od.rectangle([(0, H-180), (W, H)], fill=(0, 0, 0, 130))
+
     card = Image.alpha_composite(bg.convert("RGBA"), overlay).convert("RGB")
     draw = ImageDraw.Draw(card)
 
-    draw.rectangle([(0, 0), (W, 180)], fill=primary)
-    draw.text((W//2, 50),  "🍎 Fruits with Facts", fill=(255,255,255), anchor="mm")
-    draw.text((W//2, 120), f"#{fruit_name.replace(' ','')} #Shorts", fill=(255,255,255), anchor="mm")
+    # Small "FACT N/5" badge top-left
+    draw.rounded_rectangle([(30, 50), (260, 130)], radius=20, fill=accent)
+    draw.text((145, 90), f"FACT {fact_num}/{total_facts}",
+              fill=(30, 30, 30), anchor="mm")
 
-    cy, cr = 580, 160
-    draw.ellipse([(W//2-cr, cy-cr), (W//2+cr, cy+cr)], fill=accent)
-    draw.text((W//2, cy), f"{fact_num}", fill=(30,30,30), anchor="mm")
-    draw.text((W//2, cy + cr + 40), "FACT", fill=accent, anchor="mm")
+    # Channel name top-right
+    draw.text((W-30, 90), "Fruits with Facts",
+              fill=(255, 255, 255), anchor="rm")
 
-    ty = cy + cr + 120
-    th = 420
-    draw.rounded_rectangle([(60, ty), (W-60, ty + th)], radius=30, fill=(255,255,255))
-    wrapped = textwrap.fill(fact_text, width=28)
-    draw.text((W//2, ty + th//2), wrapped, fill=(20,20,20), anchor="mm", align="center")
-    draw.text((W//2, ty + th + 60), emoji * 3, fill=(255,255,255), anchor="mm")
-
-    dy = H - 120
-    spacing = 60
+    # Small progress dots at bottom
+    dy = H - 90
+    spacing = 50
     total_w = (total_facts - 1) * spacing
     sx = W//2 - total_w//2
     for i in range(total_facts):
         cx = sx + i * spacing
         if i + 1 == fact_num:
-            draw.ellipse([(cx-18, dy-18), (cx+18, dy+18)], fill=accent)
+            draw.ellipse([(cx-14, dy-14), (cx+14, dy+14)], fill=accent)
         else:
-            draw.ellipse([(cx-10, dy-10), (cx+10, dy+10)], fill=(150,150,150))
+            draw.ellipse([(cx-8, dy-8), (cx+8, dy+8)], fill=(180, 180, 180))
 
     card.save(output_path, "PNG", optimize=False)
 
@@ -264,7 +273,7 @@ def create_subtitles(data, thumbnail_offset=1.5):
     ]
 
     SILENCE = 0.4
-    WPL = 6
+    WPL = 4
     srt, idx = [], 1
     cursor = thumbnail_offset
 
@@ -401,12 +410,16 @@ def assemble_video(data, srt_path, music_path):
     # Then add audio + subtitles in single pass
     srt_esc = srt_path.replace("\\", "/").replace(":", "\\:")
     sub_style = (
-        "FontName=Arial,FontSize=28,Bold=1,"
-        "PrimaryColour=&H00FFFFFF,"
-        "OutlineColour=&H00000000,"
-        "BackColour=&HAA000000,"
-        "BorderStyle=3,Outline=2,Shadow=0,"
-        "Alignment=2,MarginV=60,MarginL=40,MarginR=40"
+        "FontName=Arial Black,FontSize=18,Bold=1,"
+        "PrimaryColour=&H0000FFFF,"      # Bright YELLOW text
+        "OutlineColour=&H00000000,"       # Black outline
+        "BackColour=&H00000000,"          # Transparent background
+        "BorderStyle=1,"                  # 1 = outline only (no box)
+        "Outline=3,"                      # Thicker outline for readability
+        "Shadow=2,"
+        "Alignment=2,"                    # Bottom center
+        "MarginV=380,"                    # HIGH up from bottom (smaller area)
+        "MarginL=120,MarginR=120"         # Narrow horizontal margin
     )
 
     cmd = [
