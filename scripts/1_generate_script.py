@@ -62,6 +62,7 @@ Return ONLY raw valid JSON, no markdown, no backticks:
     "Detailed image prompt for {fruit_name} growing on tree or plant in nature",
     "Detailed image prompt for {fruit_name} with water droplets, dark moody background",
     "Detailed image prompt for {fruit_name} in rustic bowl or basket, warm lighting"
+    "Detailed image prompt for {fruit_name} being eaten by people, food photography"
   ],
   "colors": {{
     "primary": "Pick one vibrant hex color matching {fruit_name} color e.g. #FF6B35",
