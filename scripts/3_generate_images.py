@@ -163,21 +163,26 @@ def create_vertical_thumbnail(fruit_name, emoji, primary, accent, secondary,
     draw_outlined_text(draw, (W//2, 130), "Educational Shorts",
                        font=font_small, fill=(255,230,180), outline_width=2)
 
-    # ── Big "5 FACTS" badge in middle ─────────────────────────────────────────
+    # ── Smaller "5 FACTS" badge in middle ─────────────────────────────────────
     badge_y = 480
-    # Outer accent ring
-    draw.ellipse([(W//2-340, badge_y-340), (W//2+340, badge_y+340)],
-                 fill=accent, outline=(0,0,0), width=10)
-    # Inner darker circle for depth
-    draw.ellipse([(W//2-300, badge_y-300), (W//2+300, badge_y+300)],
+    # Outer accent ring (smaller)
+    draw.ellipse([(W//2-220, badge_y-220), (W//2+220, badge_y+220)],
+                 fill=accent, outline=(0,0,0), width=8)
+    # Inner solid circle
+    draw.ellipse([(W//2-195, badge_y-195), (W//2+195, badge_y+195)],
                  fill=accent)
 
-    # "5" - HUGE
+    # "5" - big but proportional now
+    font_5 = find_font(180, bold=True)  # was 280, smaller now
+    font_facts = find_font(70, bold=True)  # was 120, smaller now
+
     draw_outlined_text(draw, (W//2, badge_y - 30), "5",
-                       font=font_huge, fill=(20,20,20), outline=(255,255,255), outline_width=5)
+                       font=font_5, fill=(20,20,20),
+                       outline=(255,255,255), outline_width=4)
     # "FACTS"
-    draw_outlined_text(draw, (W//2, badge_y + 180), "FACTS",
-                       font=font_xl, fill=(20,20,20), outline=(255,255,255), outline_width=4)
+    draw_outlined_text(draw, (W//2, badge_y + 110), "FACTS",
+                       font=font_facts, fill=(20,20,20),
+                       outline=(255,255,255), outline_width=3)
 
     # ── Big fruit name in coloured bar ────────────────────────────────────────
     bar_y = 1080
@@ -242,12 +247,16 @@ def create_horizontal_thumbnail(fruit_name, emoji, primary, accent, secondary,
     draw_outlined_text(draw, (W//2, 35), "FRUITS WITH FACTS",
                        font=font_medium, fill=(255,255,255), outline_width=2)
 
-    # Left circle with "5"
-    draw.ellipse([(60, 130), (560, 630)], fill=accent, outline=(0,0,0), width=8)
-    draw_outlined_text(draw, (310, 320), "5",
-                       font=font_huge, fill=(20,20,20), outline=(255,255,255), outline_width=4)
-    draw_outlined_text(draw, (310, 510), "FACTS",
-                       font=font_xl, fill=(20,20,20), outline=(255,255,255), outline_width=3)
+    # Smaller left circle with "5"
+    draw.ellipse([(120, 200), (480, 560)], fill=accent, outline=(0,0,0), width=6)
+    font_5h = find_font(140, bold=True)
+    font_factsh = find_font(60, bold=True)
+    draw_outlined_text(draw, (300, 350), "5",
+                       font=font_5h, fill=(20,20,20),
+                       outline=(255,255,255), outline_width=3)
+    draw_outlined_text(draw, (300, 480), "FACTS",
+                       font=font_factsh, fill=(20,20,20),
+                       outline=(255,255,255), outline_width=2)
 
     # Right side text
     draw_outlined_text(draw, (620, 200), "ABOUT",
