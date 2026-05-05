@@ -24,7 +24,7 @@ async def edge_tts_generate(text, output_path, voice="en-US-AndrewNeural"):
     tts = edge_tts.Communicate(
         text=text,
         voice=voice,
-        rate="+8%"          # Mild speed bump for energy (not too fast)
+        # No rate change — 100% natural like the sample
         # NO pitch shift — keeps voice natural
         # NO volume boost — keeps natural dynamics
     )
