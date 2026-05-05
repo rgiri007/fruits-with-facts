@@ -1,21 +1,19 @@
 """
-Step 4: Assemble interactive YouTube Shorts video (1080x1920)
-With cinematic animations: Ken Burns zoom, pan effects, fade transitions
-Makes images feel like real video clips!
+Step 4: Assemble Shorts video with FAST animations
+Uses scale animations instead of slow zoompan filter
+~3x faster than zoompan, same cinematic feel
 """
 
 import json
 import os
 import subprocess
 import requests
-import urllib.parse
-from PIL import Image, ImageDraw, ImageFilter, ImageFont
+from PIL import Image, ImageDraw, ImageFilter
 import textwrap
-import random
 
 
 W, H = 1080, 1920
-FPS = 30  # Higher fps = smoother animations
+FPS = 24
 
 
 def load_video_data():
@@ -43,7 +41,6 @@ def to_srt(s):
     return f"{int(h):02d}:{int(m):02d}:{int(sec):02d},{ms:03d}"
 
 
-# ── Royalty-free music ───────────────────────────────────────────────────────
 def get_background_music(duration):
     out = "output/audio/background_music.mp3"
     trimmed = "output/audio/background_trimmed.mp3"
@@ -56,7 +53,7 @@ def get_background_music(duration):
 
     for url in music_urls:
         try:
-            print(f"Downloading music...")
+            print("Downloading music...")
             r = requests.get(url, timeout=20)
             if r.status_code == 200 and len(r.content) > 10000:
                 with open(out, "wb") as f:
@@ -66,24 +63,96 @@ def get_background_music(duration):
                     "ffmpeg", "-y", "-i", out, "-t", str(duration + 1),
                     "-af", f"afade=t=out:st={fade_start}:d=2,volume=0.12",
                     "-codec:a", "libmp3lame", trimmed
-                ], capture_output=True, timeout=60)
+                ], capture_output=True, timeout=30)
                 print("Music ready")
                 return trimmed
         except Exception as e:
-            print(f"Music URL failed: {e}")
+            print(f"Music failed: {e}")
             continue
 
-    # Silent fallback
     subprocess.run([
         "ffmpeg", "-y", "-f", "lavfi",
         "-i", "anullsrc=r=44100:cl=stereo",
         "-t", str(duration + 1),
         "-codec:a", "libmp3lame", trimmed
-    ], capture_output=True, timeout=30)
+    ], capture_output=True, timeout=15)
     return trimmed
 
 
-# ── Create lightweight fact card ──────────────────────────────────────────────
+# ── Pre-render animation frames as a video clip (FAST — no zoompan) ──────────
+def create_animated_clip(card_image_path, duration, output_path, anim_type="zoom_in"):
+    """
+    Create animated video clip from a still image using simple scale+crop.
+    This is 3-5x FASTER than zoompan filter!
+    """
+    total_frames = int(duration * FPS)
+
+    # Pre-resize the image to a larger size for cropping
+    img = Image.open(card_image_path)
+
+    if anim_type == "zoom_in":
+        # Slowly zoom from 100% to 110% (cropping inward)
+        crop_filter = (
+            f"scale={W}:-1,"
+            f"crop=w='iw*(1-0.0008*n)':h='ih*(1-0.0008*n)':"
+            f"x='(iw-iw*(1-0.0008*n))/2':y='(ih-ih*(1-0.0008*n))/2',"
+            f"scale={W}:{H}"
+        )
+    elif anim_type == "zoom_out":
+        # Reverse zoom: 110% to 100%
+        crop_filter = (
+            f"scale={int(W*1.12)}:-1,"
+            f"crop=w='iw*(0.89+0.0008*n)':h='ih*(0.89+0.0008*n)':"
+            f"x='(iw-iw*(0.89+0.0008*n))/2':y='(ih-ih*(0.89+0.0008*n))/2',"
+            f"scale={W}:{H}"
+        )
+    elif anim_type == "pan_right":
+        # Pan from left to right, slight zoom
+        crop_filter = (
+            f"scale={int(W*1.15)}:-1,"
+            f"crop=w='iw*0.87':h='ih*0.87':"
+            f"x='(iw-iw*0.87)*(n/{total_frames})':y='(ih-ih*0.87)/2',"
+            f"scale={W}:{H}"
+        )
+    elif anim_type == "pan_left":
+        crop_filter = (
+            f"scale={int(W*1.15)}:-1,"
+            f"crop=w='iw*0.87':h='ih*0.87':"
+            f"x='(iw-iw*0.87)*(1-n/{total_frames})':y='(ih-ih*0.87)/2',"
+            f"scale={W}:{H}"
+        )
+    else:  # static (no animation)
+        crop_filter = f"scale={W}:{H}"
+
+    cmd = [
+        "ffmpeg", "-y",
+        "-loop", "1",
+        "-t", str(duration),
+        "-i", card_image_path,
+        "-vf", f"{crop_filter},setsar=1,fps={FPS}",
+        "-c:v", "libx264",
+        "-preset", "ultrafast",
+        "-crf", "23",
+        "-pix_fmt", "yuv420p",
+        "-an",
+        output_path
+    ]
+
+    result = subprocess.run(cmd, capture_output=True, text=True, timeout=180)
+    if result.returncode != 0:
+        # Fallback: just static image to video
+        print(f"  Animation failed, using static: {result.stderr[-200:]}")
+        subprocess.run([
+            "ffmpeg", "-y", "-loop", "1", "-t", str(duration),
+            "-i", card_image_path,
+            "-vf", f"scale={W}:{H},setsar=1,fps={FPS}",
+            "-c:v", "libx264", "-preset", "ultrafast", "-crf", "23",
+            "-pix_fmt", "yuv420p", "-an",
+            output_path
+        ], capture_output=True, timeout=120)
+
+
+# ── Card creation functions (unchanged) ──────────────────────────────────────
 def create_fact_card(fruit_name, fact_num, total_facts, fact_text,
                      emoji, colors, bg_image_path, output_path):
     try:
@@ -116,7 +185,6 @@ def create_fact_card(fruit_name, fact_num, total_facts, fact_text,
     draw.rounded_rectangle([(60, ty), (W-60, ty + th)], radius=30, fill=(255,255,255))
     wrapped = textwrap.fill(fact_text, width=28)
     draw.text((W//2, ty + th//2), wrapped, fill=(20,20,20), anchor="mm", align="center")
-
     draw.text((W//2, ty + th + 60), emoji * 3, fill=(255,255,255), anchor="mm")
 
     dy = H - 120
@@ -131,7 +199,6 @@ def create_fact_card(fruit_name, fact_num, total_facts, fact_text,
             draw.ellipse([(cx-10, dy-10), (cx+10, dy+10)], fill=(150,150,150))
 
     card.save(output_path, "PNG", optimize=False)
-    return output_path
 
 
 def create_hook_card(fruit_name, hook_text, emoji, colors, bg_image_path, output_path):
@@ -183,9 +250,7 @@ def create_outro_card(fruit_name, emoji, colors, output_path):
     img.save(output_path, "PNG", optimize=False)
 
 
-# ── Subtitles ────────────────────────────────────────────────────────────────
 def create_subtitles(data, thumbnail_offset=1.5):
-    """thumbnail_offset = seconds added at start for the thumbnail card"""
     vo = data["voiceover"]
     seg_names = ["hook","fact_1","fact_2","fact_3","fact_4","fact_5","outro"]
     seg_texts = [
@@ -201,17 +266,15 @@ def create_subtitles(data, thumbnail_offset=1.5):
     SILENCE = 0.4
     WPL = 6
     srt, idx = [], 1
-    cursor = thumbnail_offset  # account for thumbnail intro
+    cursor = thumbnail_offset
 
     for name, text in zip(seg_names, seg_texts):
         seg_path = f"output/audio/segments/{name}.mp3"
         dur = get_duration(seg_path) if os.path.exists(seg_path) \
               else max(2.0, len(text.split()) / 3.0)
-
         words = text.split()
         chunks = [words[i:i+WPL] for i in range(0, len(words), WPL)]
         card_d = dur / max(len(chunks), 1)
-
         for chunk in chunks:
             srt.append(
                 f"{idx}\n{to_srt(cursor)} --> {to_srt(cursor + card_d - 0.05)}\n"
@@ -224,115 +287,11 @@ def create_subtitles(data, thumbnail_offset=1.5):
     srt_path = os.path.abspath("output/subtitles.srt")
     with open(srt_path, "w", encoding="utf-8") as f:
         f.write("\n".join(srt))
-    print(f"Subtitles: {idx-1} cards, {cursor:.1f}s total")
+    print(f"Subtitles: {idx-1} cards")
     return srt_path, cursor
 
 
-# ── Build animation filter for each card ─────────────────────────────────────
-def build_animation_filter(input_idx, duration, anim_type, output_label):
-    """
-    Returns a FFmpeg filter string that animates a still image.
-    
-    Animation types (cycled across cards for variety):
-      - zoom_in:    slow zoom from 1.0x → 1.15x (Ken Burns)
-      - zoom_out:   slow zoom from 1.15x → 1.0x
-      - pan_left:   pan from right to left
-      - pan_right:  pan from left to right
-      - pan_up:     pan from bottom to top
-      - zoom_pan:   zoom while panning diagonally
-    """
-    total_frames = int(duration * FPS)
-
-    # Higher upscale = smoother zoompan motion
-    upscale = 4000
-
-    if anim_type == "zoom_in":
-        # Ken Burns classic: slow zoom in, centered
-        filter_str = (
-            f"[{input_idx}:v]"
-            f"scale={upscale}:-1,"
-            f"zoompan="
-            f"z='min(zoom+0.0015,1.15)':"
-            f"x='iw/2-(iw/zoom/2)':"
-            f"y='ih/2-(ih/zoom/2)':"
-            f"d={total_frames}:"
-            f"s={W}x{H}:fps={FPS},"
-            f"setsar=1[{output_label}]"
-        )
-
-    elif anim_type == "zoom_out":
-        # Reverse Ken Burns: zoom out from close-up
-        filter_str = (
-            f"[{input_idx}:v]"
-            f"scale={upscale}:-1,"
-            f"zoompan="
-            f"z='if(eq(on,0),1.15,max(zoom-0.0015,1.0))':"
-            f"x='iw/2-(iw/zoom/2)':"
-            f"y='ih/2-(ih/zoom/2)':"
-            f"d={total_frames}:"
-            f"s={W}x{H}:fps={FPS},"
-            f"setsar=1[{output_label}]"
-        )
-
-    elif anim_type == "pan_left":
-        # Slow horizontal pan right→left, slight zoom
-        filter_str = (
-            f"[{input_idx}:v]"
-            f"scale={upscale}:-1,"
-            f"zoompan="
-            f"z='1.1':"
-            f"x='iw-(iw/zoom)-(on*(iw-(iw/zoom))/{total_frames})':"
-            f"y='ih/2-(ih/zoom/2)':"
-            f"d={total_frames}:"
-            f"s={W}x{H}:fps={FPS},"
-            f"setsar=1[{output_label}]"
-        )
-
-    elif anim_type == "pan_right":
-        # Slow horizontal pan left→right
-        filter_str = (
-            f"[{input_idx}:v]"
-            f"scale={upscale}:-1,"
-            f"zoompan="
-            f"z='1.1':"
-            f"x='(on*(iw-(iw/zoom))/{total_frames})':"
-            f"y='ih/2-(ih/zoom/2)':"
-            f"d={total_frames}:"
-            f"s={W}x{H}:fps={FPS},"
-            f"setsar=1[{output_label}]"
-        )
-
-    elif anim_type == "pan_up":
-        # Vertical pan bottom→top
-        filter_str = (
-            f"[{input_idx}:v]"
-            f"scale={upscale}:-1,"
-            f"zoompan="
-            f"z='1.1':"
-            f"x='iw/2-(iw/zoom/2)':"
-            f"y='ih-(ih/zoom)-(on*(ih-(ih/zoom))/{total_frames})':"
-            f"d={total_frames}:"
-            f"s={W}x{H}:fps={FPS},"
-            f"setsar=1[{output_label}]"
-        )
-
-    else:  # zoom_pan default — zoom + diagonal pan
-        filter_str = (
-            f"[{input_idx}:v]"
-            f"scale={upscale}:-1,"
-            f"zoompan="
-            f"z='min(zoom+0.001,1.12)':"
-            f"x='(on*(iw-(iw/zoom))/{total_frames})':"
-            f"y='(on*(ih-(ih/zoom))/{total_frames})':"
-            f"d={total_frames}:"
-            f"s={W}x{H}:fps={FPS},"
-            f"setsar=1[{output_label}]"
-        )
-
-    return filter_str
-
-
-# ── Assemble video with cinematic animations ─────────────────────────────────
+# ── Main video assembly with TWO-PASS approach (faster) ──────────────────────
 def assemble_video(data, srt_path, music_path):
     fruit  = data["fruit"]
     emoji  = data.get("emoji", "🍎")
@@ -340,11 +299,11 @@ def assemble_video(data, srt_path, music_path):
     vo     = data["voiceover"]
     out    = "output/final_video.mp4"
 
+    # Add 1.5s silence at start for thumbnail intro
     voiceover_mp3_orig = "output/audio/final_voiceover.mp3"
     voiceover_mp3 = "output/audio/voiceover_with_intro.mp3"
-
-    # Add 1.5s silence at start to sync with thumbnail card
     THUMB_DURATION = 1.5
+
     subprocess.run([
         "ffmpeg", "-y",
         "-f", "lavfi", "-i", "anullsrc=r=44100:cl=mono",
@@ -375,65 +334,71 @@ def assemble_video(data, srt_path, music_path):
     if not scene_images:
         scene_images = ["output/images/scene_1.png"]
 
-    # ── Create cards ──────────────────────────────────────────────────────────
-    print("Creating animated cards...")
+    # Create cards
+    print("Creating cards...")
     os.makedirs("output/cards", exist_ok=True)
+    os.makedirs("output/clips", exist_ok=True)
 
-    # Each card has: (image_path, duration, animation_type)
-    # Animation types cycle for variety
-    animation_cycle = ["zoom_in", "pan_right", "zoom_pan", "pan_left", "zoom_out", "pan_up", "zoom_in"]
-    card_paths = []
+    cards_data = []  # (card_path, duration, anim_type)
 
-    # 1. Thumbnail intro card (1.5s) with zoom_in animation
-    thumb_vertical = "output/thumbnail_vertical.png"
-    if os.path.exists(thumb_vertical):
-        card_paths.append((thumb_vertical, THUMB_DURATION, "zoom_in"))
-        print("  Added thumbnail as opening frame (zoom_in)")
+    # Thumbnail intro
+    if os.path.exists("output/thumbnail_vertical.png"):
+        cards_data.append(("output/thumbnail_vertical.png", THUMB_DURATION, "zoom_in"))
 
-    # 2. Hook card (with first scene image as bg)
+    # Hook
     create_hook_card(fruit, vo["hook"], emoji, colors, scene_images[0], "output/cards/hook.png")
-    card_paths.append(("output/cards/hook.png", seg_durs[0], "zoom_out"))
+    cards_data.append(("output/cards/hook.png", seg_durs[0], "zoom_out"))
 
-    # 3. 5 fact cards, each with different animation
+    # Facts with cycling animations
+    animations = ["pan_right", "zoom_in", "pan_left", "zoom_out", "zoom_in"]
     for i in range(5):
         text = vo[f"fact_{i+1}"]
         img_path = scene_images[i % len(scene_images)]
         card_path = f"output/cards/fact_{i+1}.png"
         create_fact_card(fruit, i+1, 5, text, emoji, colors, img_path, card_path)
-        anim = animation_cycle[(i+1) % len(animation_cycle)]
-        card_paths.append((card_path, seg_durs[i+1], anim))
+        cards_data.append((card_path, seg_durs[i+1], animations[i]))
 
-    # 4. Outro card with zoom_in
+    # Outro
     create_outro_card(fruit, emoji, colors, "output/cards/outro.png")
-    card_paths.append(("output/cards/outro.png", seg_durs[6], "zoom_in"))
+    cards_data.append(("output/cards/outro.png", seg_durs[6], "zoom_in"))
 
-    print(f"Created {len(card_paths)} animated cards")
+    print(f"Cards ready: {len(cards_data)}")
 
-    # ── Build FFmpeg command ──────────────────────────────────────────────────
-    cmd = ["ffmpeg", "-y"]
+    # ── PASS 1: Render each card as animated clip (fast, parallel-friendly) ──
+    print("\n=== Pass 1: Animating each clip ===")
+    clip_paths = []
+    for i, (card, dur, anim) in enumerate(cards_data):
+        clip_path = f"output/clips/clip_{i}.mp4"
+        print(f"  Animating clip {i+1}/{len(cards_data)} ({anim}, {dur:.1f}s)...")
+        create_animated_clip(card, dur, clip_path, anim)
+        if os.path.exists(clip_path):
+            clip_paths.append(clip_path)
+        else:
+            print(f"  WARNING: clip {i} failed")
 
-    # Image inputs (each looped for its duration)
-    for card_path, dur, anim in card_paths:
-        cmd += ["-loop", "1", "-t", str(dur), "-i", card_path]
+    if not clip_paths:
+        raise RuntimeError("No clips were created!")
 
-    cmd += ["-i", voiceover_mp3, "-i", music_path]
+    # ── PASS 2: Concat all clips + add audio + subtitles ──────────────────────
+    print("\n=== Pass 2: Combining clips + audio + subtitles ===")
 
-    n = len(card_paths)
-    vai = n      # voiceover audio index
-    mai = n + 1  # music audio index
+    # Create concat list
+    concat_file = "output/clips/concat.txt"
+    with open(concat_file, "w") as f:
+        for clip in clip_paths:
+            f.write(f"file '{os.path.abspath(clip)}'\n")
 
-    # Build animation filter for each card
-    anim_parts = []
-    for i, (card_path, dur, anim_type) in enumerate(card_paths):
-        anim_parts.append(
-            build_animation_filter(i, dur, anim_type, f"sv{i}")
-        )
+    # First concat all video clips (no re-encode = super fast)
+    concat_video = "output/clips/concat_video.mp4"
+    subprocess.run([
+        "ffmpeg", "-y",
+        "-f", "concat", "-safe", "0",
+        "-i", concat_file,
+        "-c", "copy",
+        concat_video
+    ], capture_output=True, timeout=120)
 
-    # Concat all animated streams
-    concat_in  = "".join(f"[sv{i}]" for i in range(n))
-    concat_out = f"{concat_in}concat=n={n}:v=1:a=0[vconcat]"
-
-    # Burn subtitles
+    # Then add audio + subtitles in single pass
     srt_esc = srt_path.replace("\\", "/").replace(":", "\\:")
     sub_style = (
         "FontName=Arial,FontSize=28,Bold=1,"
@@ -443,54 +408,47 @@ def assemble_video(data, srt_path, music_path):
         "BorderStyle=3,Outline=2,Shadow=0,"
         "Alignment=2,MarginV=60,MarginL=40,MarginR=40"
     )
-    sub_filter = f"[vconcat]subtitles='{srt_esc}':force_style='{sub_style}'[vout]"
 
-    # Audio mix
-    audio_mix = (
-        f"[{vai}:a][{mai}:a]"
-        f"amix=inputs=2:weights='1 0.15':duration=first[aout]"
-    )
-
-    filter_complex = ";".join(anim_parts + [concat_out, sub_filter, audio_mix])
-
-    cmd += [
-        "-filter_complex", filter_complex,
+    cmd = [
+        "ffmpeg", "-y",
+        "-i", concat_video,
+        "-i", voiceover_mp3,
+        "-i", music_path,
+        "-filter_complex",
+        f"[0:v]subtitles='{srt_esc}':force_style='{sub_style}'[vout];"
+        f"[1:a][2:a]amix=inputs=2:weights='1 0.15':duration=first[aout]",
         "-map", "[vout]",
         "-map", "[aout]",
         "-c:v", "libx264",
-        "-preset", "fast",      # 'fast' for animations - 'ultrafast' breaks zoompan
-        "-crf", "23",
+        "-preset", "ultrafast",
+        "-crf", "24",
         "-c:a", "aac",
         "-b:a", "128k",
         "-r", str(FPS),
         "-pix_fmt", "yuv420p",
         "-movflags", "+faststart",
         "-shortest",
-        "-threads", "0",
         out
     ]
 
-    print(f"Running FFmpeg with {n} animated segments at {FPS}fps...")
-    print("(this takes 8-15 minutes for cinematic animations)")
-    result = subprocess.run(cmd, capture_output=True, text=True, timeout=1500)
+    print("Final encoding...")
+    result = subprocess.run(cmd, capture_output=True, text=True, timeout=600)
 
     if result.returncode == 0:
         size = os.path.getsize(out) / 1024 / 1024
         dur = get_duration(out)
-        print(f"Video: {out} ({size:.1f}MB, {dur:.1f}s)")
+        print(f"\nVideo ready: {out} ({size:.1f}MB, {dur:.1f}s)")
     else:
         print("FFmpeg error:")
         print(result.stderr[-3000:])
-        raise RuntimeError("Video assembly failed")
+        raise RuntimeError("Final assembly failed")
 
 
 if __name__ == "__main__":
     data = load_video_data()
-    print(f"=== Assembling animated video for: {data['fruit']} ===")
+    print(f"=== Assembling: {data['fruit']} ===")
 
-    # Subtitles offset by 1.5s for thumbnail intro
     srt_path, _ = create_subtitles(data, thumbnail_offset=1.5)
-
     voiceover_dur = get_duration("output/audio/final_voiceover.mp3") + 1.5
     music_path = get_background_music(voiceover_dur)
     assemble_video(data, srt_path, music_path)
