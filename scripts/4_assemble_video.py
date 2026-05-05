@@ -196,7 +196,7 @@ def create_fact_card(fruit_name, fact_num, total_facts, fact_text,
               fill=(255, 255, 255), anchor="rm")
 
     # Small progress dots at bottom
-    dy = H - 90
+    dy = H - 200  # leave room for subtitles below
     spacing = 50
     total_w = (total_facts - 1) * spacing
     sx = W//2 - total_w//2
@@ -332,7 +332,7 @@ def create_subtitles(data, thumbnail_offset=1.5):
         f"Fact 3! {vo['fact_3']}",
         f"Fact 4! {vo['fact_4']}",
         f"Fact 5! {vo['fact_5']}",
-        vo["outro"],
+        "",  # No subtitle on outro card — outro has its own big stylish text
     ]
 
     SILENCE = 0.4
@@ -343,7 +343,13 @@ def create_subtitles(data, thumbnail_offset=1.5):
     for name, text in zip(seg_names, seg_texts):
         seg_path = f"output/audio/segments/{name}.mp3"
         dur = get_duration(seg_path) if os.path.exists(seg_path) \
-              else max(2.0, len(text.split()) / 3.0)
+              else max(2.0, len(text.split()) / 3.0 if text else 3.0)
+
+        # Skip subtitle generation for empty text (outro card)
+        if not text.strip():
+            cursor += dur + SILENCE
+            continue
+
         words = text.split()
         chunks = [words[i:i+WPL] for i in range(0, len(words), WPL)]
         card_d = dur / max(len(chunks), 1)
@@ -473,15 +479,15 @@ def assemble_video(data, srt_path, music_path):
     # Then add audio + subtitles in single pass
     srt_esc = srt_path.replace("\\", "/").replace(":", "\\:")
     sub_style = (
-        "FontName=Arial,FontSize=22,Bold=1,"
-        "PrimaryColour=&H00FFFFFF,"       # White text
+        "FontName=Arial,FontSize=18,Bold=1,"
+        "PrimaryColour=&H0000FFFF,"       # Bright YELLOW (colorful)
         "OutlineColour=&H00000000,"        # Black outline
         "BackColour=&H00000000,"           # Transparent
-        "BorderStyle=1,"                   # Outline only (no box)
-        "Outline=3,Shadow=1,"              # Visible outline
+        "BorderStyle=1,"                   # Outline only
+        "Outline=3,Shadow=1,"              # Strong outline
         "Alignment=2,"                     # Bottom center
-        "MarginV=200,"                     # Above progress dots
-        "MarginL=100,MarginR=100"          # Wide enough
+        "MarginV=50,"                      # ~1cm from bottom edge
+        "MarginL=80,MarginR=80"            # ~1cm side margins
     )
 
     cmd = [
