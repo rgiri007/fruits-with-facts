@@ -156,31 +156,35 @@ def create_vertical_thumbnail(fruit_name, emoji, primary, accent, secondary,
     font_small  = find_font(45,  bold=True)
     font_tiny   = find_font(35,  bold=True)
 
-    # ── Top banner ────────────────────────────────────────────────────────────
-    draw.rectangle([(0, 0), (W, 180)], fill=primary)
-    draw_outlined_text(draw, (W//2, 65),  "FRUITS WITH FACTS",
+    # ── Top banner moved DOWN (no longer flush with top) ─────────────────────
+    # Add some space at top, then the banner sits at y=80 to y=260
+    banner_top = 80
+    banner_bot = 260
+    # Round the corners a bit for a more polished look
+    draw.rounded_rectangle([(40, banner_top), (W-40, banner_bot)],
+                           radius=30, fill=primary, outline=accent, width=4)
+    draw_outlined_text(draw, (W//2, banner_top + 60),  "FRUITS WITH FACTS",
                        font=font_medium, fill=(255,255,255), outline_width=3)
-    draw_outlined_text(draw, (W//2, 130), "Educational Shorts",
+    draw_outlined_text(draw, (W//2, banner_top + 130), "Educational Shorts",
                        font=font_small, fill=(255,230,180), outline_width=2)
 
-    # ── Smaller "5 FACTS" badge in middle ─────────────────────────────────────
-    badge_y = 480
-    # Outer accent ring (smaller)
-    draw.ellipse([(W//2-220, badge_y-220), (W//2+220, badge_y+220)],
-                 fill=accent, outline=(0,0,0), width=8)
-    # Inner solid circle
-    draw.ellipse([(W//2-195, badge_y-195), (W//2+195, badge_y+195)],
+    # ── Compact "5 FACTS" badge ────────────────────────────────────────────
+    badge_y = 560  # moved down a bit since top yellow box also moved
+    # Smaller outer ring
+    draw.ellipse([(W//2-180, badge_y-180), (W//2+180, badge_y+180)],
+                 fill=accent, outline=(0,0,0), width=7)
+    # Smaller inner circle
+    draw.ellipse([(W//2-160, badge_y-160), (W//2+160, badge_y+160)],
                  fill=accent)
 
-    # "5" - big but proportional now
-    font_5 = find_font(180, bold=True)  # was 280, smaller now
-    font_facts = find_font(70, bold=True)  # was 120, smaller now
+    # Proportional text inside circle
+    font_5 = find_font(140, bold=True)
+    font_facts = find_font(55, bold=True)
 
-    draw_outlined_text(draw, (W//2, badge_y - 30), "5",
+    draw_outlined_text(draw, (W//2, badge_y - 25), "5",
                        font=font_5, fill=(20,20,20),
                        outline=(255,255,255), outline_width=4)
-    # "FACTS"
-    draw_outlined_text(draw, (W//2, badge_y + 110), "FACTS",
+    draw_outlined_text(draw, (W//2, badge_y + 90), "FACTS",
                        font=font_facts, fill=(20,20,20),
                        outline=(255,255,255), outline_width=3)
 
