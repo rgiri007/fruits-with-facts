@@ -8,7 +8,7 @@ import json
 import os
 import subprocess
 import requests
-from PIL import Image, ImageDraw, ImageFilter
+from PIL import Image, ImageDraw, ImageFilter, ImageFont
 import textwrap
 
 
@@ -248,26 +248,76 @@ def create_hook_card(fruit_name, hook_text, emoji, colors, bg_image_path, output
 
 
 def create_outro_card(fruit_name, emoji, colors, output_path):
-    """Minimal outro — solid color background with simple text. No boxes."""
+    """Stylish outro with BIG bold text and proper fonts."""
     try:
         primary = tuple(int(colors.get("primary","#FF6B35").lstrip("#")[i:i+2],16) for i in (0,2,4))
         accent  = tuple(int(colors.get("accent", "#FFE66D").lstrip("#")[i:i+2],16) for i in (0,2,4))
+        secondary = tuple(int(colors.get("secondary","#C44A1F").lstrip("#")[i:i+2],16) for i in (0,2,4))
     except:
         primary, accent = (255,107,53), (255,230,109)
+        secondary = (196, 74, 31)
 
-    # Solid color outro
+    # Gradient background (primary → secondary)
     img = Image.new("RGB", (W, H), primary)
     draw = ImageDraw.Draw(img)
+    for i in range(H):
+        ratio = i / H
+        r = int(primary[0]*(1-ratio) + secondary[0]*ratio)
+        g = int(primary[1]*(1-ratio) + secondary[1]*ratio)
+        b = int(primary[2]*(1-ratio) + secondary[2]*ratio)
+        draw.line([(0,i),(W,i)], fill=(r,g,b))
 
-    # Just simple text — no boxes, no rectangles
-    draw.text((W//2, 600),  "Thanks for watching!",
-              fill=(255, 255, 255), anchor="mm")
-    draw.text((W//2, 850),  "Like & Subscribe",
-              fill=accent, anchor="mm")
-    draw.text((W//2, 1080), "for more fruity facts",
-              fill=(255, 255, 255), anchor="mm")
-    draw.text((W//2, 1350), "Fruits with Facts",
-              fill=(255, 255, 255), anchor="mm")
+    # Load BIG bold fonts (TrueType — actually visible)
+    try:
+        font_huge   = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 130)
+        font_xl     = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 95)
+        font_large  = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 80)
+        font_medium = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 60)
+    except:
+        font_huge = font_xl = font_large = font_medium = ImageFont.load_default()
+
+    # Helper for outlined text (looks stylish)
+    def styled_text(pos, text, font, fill, outline=(0,0,0), outline_width=4):
+        x, y = pos
+        for dx in range(-outline_width, outline_width+1):
+            for dy in range(-outline_width, outline_width+1):
+                if dx*dx + dy*dy > outline_width*outline_width:
+                    continue
+                draw.text((x+dx, y+dy), text, font=font, fill=outline, anchor="mm")
+        draw.text((x, y), text, font=font, fill=fill, anchor="mm")
+
+    # ── BIG stylish text layout ──────────────────────────────────────────────
+    # "Thanks for" — big white
+    styled_text((W//2, 320), "Thanks for", font=font_xl,
+                fill=(255,255,255), outline=(0,0,0), outline_width=5)
+    # "WATCHING!" — HUGE accent color
+    styled_text((W//2, 460), "WATCHING!", font=font_huge,
+                fill=accent, outline=(0,0,0), outline_width=6)
+
+    # Decorative emoji line
+    styled_text((W//2, 670), "★ ★ ★ ★ ★", font=font_large,
+                fill=accent, outline=(0,0,0), outline_width=3)
+
+    # "LIKE & SUBSCRIBE" — bold yellow
+    styled_text((W//2, 840), "LIKE & SUBSCRIBE", font=font_xl,
+                fill=accent, outline=(0,0,0), outline_width=5)
+
+    # "for more fruity facts!" — medium white
+    styled_text((W//2, 1000), "for more fruity facts!", font=font_medium,
+                fill=(255,255,255), outline=(0,0,0), outline_width=3)
+
+    # Decorative line
+    draw.rectangle([(200, 1180), (W-200, 1190)], fill=(255,255,255))
+
+    # Channel name — biggest at the bottom
+    styled_text((W//2, 1330), "Fruits", font=font_huge,
+                fill=(255,255,255), outline=(0,0,0), outline_width=5)
+    styled_text((W//2, 1480), "with FACTS", font=font_huge,
+                fill=accent, outline=(0,0,0), outline_width=5)
+
+    # Hashtag at very bottom
+    styled_text((W//2, 1700), "#Shorts #FruitFacts", font=font_medium,
+                fill=(255,255,255,200), outline=(0,0,0), outline_width=2)
 
     img.save(output_path, "PNG", optimize=False)
 
@@ -423,15 +473,15 @@ def assemble_video(data, srt_path, music_path):
     # Then add audio + subtitles in single pass
     srt_esc = srt_path.replace("\\", "/").replace(":", "\\:")
     sub_style = (
-        "FontName=Arial,FontSize=14,Bold=1,"
-        "PrimaryColour=&H00FFFFFF,"       # White text (clean)
+        "FontName=Arial,FontSize=22,Bold=1,"
+        "PrimaryColour=&H00FFFFFF,"       # White text
         "OutlineColour=&H00000000,"        # Black outline
-        "BackColour=&H00000000,"           # Transparent background
+        "BackColour=&H00000000,"           # Transparent
         "BorderStyle=1,"                   # Outline only (no box)
-        "Outline=2,Shadow=1,"              # Thin outline + shadow
+        "Outline=3,Shadow=1,"              # Visible outline
         "Alignment=2,"                     # Bottom center
-        "MarginV=300,"                     # Pulled up from bottom
-        "MarginL=160,MarginR=160"          # Narrow band
+        "MarginV=200,"                     # Above progress dots
+        "MarginL=100,MarginR=100"          # Wide enough
     )
 
     cmd = [
