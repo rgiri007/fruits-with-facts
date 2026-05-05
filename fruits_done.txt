@@ -4,3 +4,4 @@ Mango
 Orange
 Strawberry
 Watermelon
+Pineapple
