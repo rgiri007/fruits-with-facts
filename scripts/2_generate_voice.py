@@ -1,14 +1,12 @@
 """
 Step 2: Generate natural human-like voice using Microsoft Edge TTS
-100% FREE - No account - No API key - Sounds very natural
-Install: pip install edge-tts
+Using en-US-AndrewNeural with NATURAL settings (no pitch shift)
 """
 
 import json
 import os
 import subprocess
 import asyncio
-import sys
 
 
 def load_video_data():
@@ -18,39 +16,38 @@ def load_video_data():
 
 async def edge_tts_generate(text, output_path, voice="en-US-AndrewNeural"):
     """
-    Microsoft Edge TTS - free, no account, very natural human voice
-    Best voices:
-      en-US-AndrewNeural   - Conversational warm male (CURRENT)
-      en-US-JennyNeural    - Clear energetic female
-      en-US-GuyNeural      - Natural male voice
-      en-GB-SoniaNeural    - British female
+    Microsoft Edge TTS — natural human voice
+    en-US-AndrewNeural — warm conversational male voice (CURRENT)
+    Uses NATURAL settings — no pitch shift, mild rate boost only
     """
     import edge_tts
     tts = edge_tts.Communicate(
         text=text,
         voice=voice,
-        rate="+15%",    # Slightly faster for Shorts energy
-        volume="+10%",  # Slightly louder
-        pitch="+5Hz"    # Slightly higher pitch, sounds more engaging
+        rate="+8%"          # Mild speed bump for energy (not too fast)
+        # NO pitch shift — keeps voice natural
+        # NO volume boost — keeps natural dynamics
     )
     await tts.save(output_path)
     print(f"  Voice saved: {output_path}")
 
 
 def generate_segment(text, output_path):
-    """Generate one audio segment using Edge TTS with espeak fallback"""
     try:
         asyncio.run(edge_tts_generate(text, output_path))
         if os.path.exists(output_path) and os.path.getsize(output_path) > 500:
             return True
+        else:
+            print(f"  Edge TTS produced empty file, falling back...")
     except Exception as e:
-        print(f"  Edge TTS failed: {e}, using espeak fallback")
+        print(f"  Edge TTS failed: {e}")
+        print(f"  Falling back to espeak...")
 
-    # Fallback to espeak
+    # Fallback to espeak (only if Edge TTS completely fails)
     wav = output_path.replace(".mp3", ".wav")
     r = subprocess.run([
-        "espeak-ng", "-v", "en-us+f3",
-        "-s", "155", "-p", "58", "-a", "180",
+        "espeak-ng", "-v", "en-us+m3",
+        "-s", "155", "-p", "55", "-a", "180",
         "-w", wav, text
     ], capture_output=True)
     if r.returncode == 0:
@@ -68,7 +65,6 @@ def generate_segment(text, output_path):
 def combine_audio(segment_files, output_path):
     os.makedirs("output/audio", exist_ok=True)
 
-    # 0.4 second silence between segments (tighter for Shorts)
     silence = "output/audio/silence.mp3"
     subprocess.run([
         "ffmpeg", "-y", "-f", "lavfi",
@@ -92,12 +88,10 @@ def combine_audio(segment_files, output_path):
         output_path
     ], capture_output=True)
 
-    # Get duration
     probe = subprocess.run([
         "ffprobe", "-v", "error",
         "-show_entries", "format=duration",
-        "-of", "default=noprint_wrappers=1:nokey=1",
-        output_path
+        "-of", "default=noprint_wrappers=1:nokey=1", output_path
     ], capture_output=True, text=True)
     duration = float(probe.stdout.strip() or "0")
     print(f"Combined audio: {output_path} ({duration:.1f}s)")
@@ -112,9 +106,8 @@ if __name__ == "__main__":
     os.makedirs("output/audio/segments", exist_ok=True)
 
     print(f"Generating voice for: {fruit}")
-    print("Using Microsoft Edge TTS (natural human voice)")
+    print(f"Voice: en-US-AndrewNeural (natural conversational male)")
 
-    # Label each fact for display
     segments = [
         ("hook",   vo["hook"]),
         ("fact_1", f"Fact 1! {vo['fact_1']}"),
@@ -128,7 +121,7 @@ if __name__ == "__main__":
     segment_files = []
     for name, text in segments:
         out = f"output/audio/segments/{name}.mp3"
-        print(f"Generating: {name} — {text[:50]}...")
+        print(f"  Segment: {name}")
         generate_segment(text, out)
         segment_files.append(out)
 
@@ -136,6 +129,5 @@ if __name__ == "__main__":
 
     if duration > 62:
         print(f"WARNING: Audio is {duration:.1f}s — over 60s limit!")
-        print("Consider shortening facts in the script.")
     else:
         print(f"Audio length: {duration:.1f}s — fits in Shorts!")
