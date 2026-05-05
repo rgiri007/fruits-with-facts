@@ -55,13 +55,14 @@ def generate_image(prompt, output_path, index, width=1080, height=1920):
     encoded = urllib.parse.quote(enhanced)
     url = (
         f"https://image.pollinations.ai/prompt/{encoded}"
-        f"?width={width}&height={height}&seed={index*77}&nologo=true&enhance=true"
+        f"?width={width}&height={height}&seed={index*77}"
+        f"&nologo=true&enhance=true&model=flux"
     )
 
     for attempt in range(3):
         try:
             print(f"  Image {index+1} attempt {attempt+1}...")
-            r = requests.get(url, timeout=120)
+            r = requests.get(url, timeout=30)
             if r.status_code == 200 and len(r.content) > 1000:
                 img = Image.open(io.BytesIO(r.content))
                 img = img.resize((width, height), Image.LANCZOS)
@@ -70,10 +71,10 @@ def generate_image(prompt, output_path, index, width=1080, height=1920):
                 if os.path.exists(output_path) and os.path.getsize(output_path) > 5000:
                     print(f"  Saved: {output_path} ({os.path.getsize(output_path)//1024}KB)")
                     return True
-            time.sleep(10)
+            time.sleep(5)
         except Exception as e:
             print(f"  Error: {e}")
-            time.sleep(10)
+            time.sleep(5)
 
     return create_fallback_image(output_path, index, width, height)
 
@@ -315,7 +316,7 @@ if __name__ == "__main__":
         print(f"Generating image {i+1}/5...")
         generate_image(prompt, out, i, width=1080, height=1920)
         image_paths.append(out)
-        time.sleep(5)
+        time.sleep(2)
 
     print("\nCreating beautiful thumbnails...")
     create_beautiful_thumbnails(fruit, emoji, colors, image_paths)
