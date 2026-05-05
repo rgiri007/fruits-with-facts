@@ -238,9 +238,25 @@ def assemble_video(data, srt_path, music_path):
     vo     = data["voiceover"]
     out    = "output/final_video.mp4"
 
-    voiceover_mp3 = "output/audio/final_voiceover.mp3"
+    voiceover_mp3_orig = "output/audio/final_voiceover.mp3"
+    voiceover_mp3 = "output/audio/voiceover_with_intro.mp3"
+
+    # Add 1.5s silence at start to sync with thumbnail card
+    subprocess.run([
+        "ffmpeg", "-y",
+        "-f", "lavfi", "-i", "anullsrc=r=44100:cl=mono",
+        "-i", voiceover_mp3_orig,
+        "-filter_complex", "[0:a]atrim=0:1.5[silence];[silence][1:a]concat=n=2:v=0:a=1[out]",
+        "-map", "[out]",
+        "-codec:a", "libmp3lame", "-qscale:a", "2",
+        voiceover_mp3
+    ], capture_output=True, timeout=60)
+
+    if not os.path.exists(voiceover_mp3) or os.path.getsize(voiceover_mp3) < 1000:
+        voiceover_mp3 = voiceover_mp3_orig
+
     total_dur = get_duration(voiceover_mp3)
-    print(f"Duration: {total_dur:.1f}s")
+    print(f"Duration: {total_dur:.1f}s (incl 1.5s thumbnail intro)")
 
     seg_names = ["hook","fact_1","fact_2","fact_3","fact_4","fact_5","outro"]
     seg_durs  = []
@@ -257,6 +273,13 @@ def assemble_video(data, srt_path, music_path):
     print("Creating cards...")
     os.makedirs("output/cards", exist_ok=True)
     card_paths = []
+
+    # ── Add thumbnail as first frame (1.5s) ──────────────────────────
+    # This makes it the visible thumbnail in YouTube Shorts feed
+    thumb_vertical = "output/thumbnail_vertical.png"
+    if os.path.exists(thumb_vertical):
+        card_paths.append((thumb_vertical, 1.5))
+        print("  Added thumbnail as opening frame")
 
     create_hook_card(fruit, vo["hook"], emoji, colors, scene_images[0], "output/cards/hook.png")
     card_paths.append(("output/cards/hook.png", seg_durs[0]))
