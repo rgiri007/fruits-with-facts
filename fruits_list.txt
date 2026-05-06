@@ -1,11 +1,3 @@
-Apple
-Banana
-Mango
-Orange
-Strawberry
-Watermelon
-Pineapple
-Grapes
 Blueberry
 Peach
 Cherry
@@ -98,3 +90,11 @@ Bergamot
 Citron
 Bitter Orange
 Trifoliate Orange
+Apple
+Banana
+Mango
+Orange
+Strawberry
+Watermelon
+Pineapple
+Grapes
