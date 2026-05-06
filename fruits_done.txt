@@ -8,3 +8,4 @@ Pineapple
 Grapes
 Blueberry
 Peach
+Cherry
