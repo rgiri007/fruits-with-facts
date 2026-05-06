@@ -34,7 +34,9 @@ jobs:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: python scripts/1_generate_script.py
 
-      - name: Step 2 - Generate Natural Voice (Edge TTS)
+      - name: Step 2 - Generate Natural Voice (HuggingFace Kokoro)
+        env:
+          HF_API_KEY: ${{ secrets.HF_API_KEY }}
         run: python scripts/2_generate_voice.py
 
       - name: Step 3 - Generate Vertical Images (Pollinations AI)
