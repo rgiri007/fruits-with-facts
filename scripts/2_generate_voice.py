@@ -265,16 +265,8 @@ if __name__ == "__main__":
         method = generate_segment_lang(text, out_raw, lang=VOICE_LANG, voice_tld=VOICE_TLD)
         methods_used.append(method)
 
-        # Speed up gTTS audio for energetic Shorts feel
-        if method == "gtts":
-            if not speed_up_audio(out_raw, out, speed=1.15):
-                # If speed-up fails, use raw version
-                os.rename(out_raw, out)
-            else:
-                if os.path.exists(out_raw):
-                    os.remove(out_raw)
-        else:
-            os.rename(out_raw, out)
+        # Use natural gTTS speed - no artificial speed-up (cleaner audio)
+        os.rename(out_raw, out)
 
         segment_files.append(out)
 
