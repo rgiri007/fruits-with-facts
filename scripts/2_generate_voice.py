@@ -91,7 +91,7 @@ def combine_audio(segment_files, output_path):
     subprocess.run([
         "ffmpeg", "-y", "-f", "lavfi",
         "-i", "anullsrc=r=44100:cl=mono",
-        "-t", "0.4", "-codec:a", "libmp3lame", silence
+        "-t", "0.25", "-codec:a", "libmp3lame", silence
     ], capture_output=True)
 
     list_file = "output/audio/concat_list.txt"
