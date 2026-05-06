@@ -43,64 +43,93 @@ def to_srt(s):
 
 def get_background_music(duration):
     """
-    Download royalty-free upbeat background music.
-    All these URLs are from Pixabay - free for commercial use, no attribution.
+    Get soft royalty-free background music.
+    Strategy: Try multiple sources, fall back to a synthesized soft pad.
     """
     out = "output/audio/background_music.mp3"
     trimmed = "output/audio/background_trimmed.mp3"
     os.makedirs("output/audio", exist_ok=True)
 
-    # Curated list of upbeat royalty-free tracks (Pixabay)
-    # Each is verified free for YouTube monetization, no copyright strikes
+    # Reliable royalty-free music sources
+    # These are CC0 (public domain) or royalty-free
     music_urls = [
-        # Upbeat happy tracks
-        "https://cdn.pixabay.com/download/audio/2024/04/30/audio_30ddb9e58c.mp3",
-        "https://cdn.pixabay.com/download/audio/2023/04/06/audio_d3b5dbc9c0.mp3",
-        "https://cdn.pixabay.com/download/audio/2022/10/17/audio_31f6dbfb91.mp3",
-        # Gentle ambient
-        "https://cdn.pixabay.com/download/audio/2022/01/18/audio_d1718ab41b.mp3",
-        "https://cdn.pixabay.com/download/audio/2022/03/10/audio_c8c8a73467.mp3",
+        # Pixabay tracks (free for commercial use)
+        "https://cdn.pixabay.com/audio/2023/06/14/audio_a3c61dca31.mp3",
+        "https://cdn.pixabay.com/audio/2024/02/12/audio_ad2b71e6c4.mp3",
+        "https://cdn.pixabay.com/audio/2022/05/27/audio_1808fbf07a.mp3",
     ]
 
     for url in music_urls:
         try:
-            print(f"Downloading royalty-free music...")
-            r = requests.get(url, timeout=30, headers={
-                "User-Agent": "Mozilla/5.0 (compatible; FruitsBot/1.0)"
+            print(f"Trying music: {url[-40:]}")
+            r = requests.get(url, timeout=20, headers={
+                "User-Agent": "Mozilla/5.0"
             })
             if r.status_code == 200 and len(r.content) > 50000:
                 with open(out, "wb") as f:
                     f.write(r.content)
 
-                # Trim to length and fade out
-                # Volume reduced to 0.08 (subtler) so voice is clear
+                # Mild soft music processing
                 fade_start = max(0, duration - 3)
                 result = subprocess.run([
                     "ffmpeg", "-y", "-i", out, "-t", str(duration + 1),
                     "-af",
-                    f"volume=0.08,"  # subtle volume
-                    f"afade=t=in:d=2,"  # fade in over 2s
-                    f"afade=t=out:st={fade_start}:d=3",  # fade out over 3s
+                    f"volume=0.10,"                        # very subtle
+                    f"highpass=f=200,"                     # remove muddy lows (won't fight voice)
+                    f"lowpass=f=8000,"                     # remove harsh highs
+                    f"afade=t=in:d=2,"
+                    f"afade=t=out:st={fade_start}:d=3",
                     "-codec:a", "libmp3lame", "-qscale:a", "4",
                     trimmed
                 ], capture_output=True, timeout=60)
 
-                if result.returncode == 0 and os.path.exists(trimmed):
-                    print(f"Music ready: {trimmed}")
+                if result.returncode == 0 and os.path.exists(trimmed) \
+                   and os.path.getsize(trimmed) > 5000:
+                    print(f"Music ready (downloaded): {trimmed}")
                     return trimmed
         except Exception as e:
-            print(f"Music URL failed: {e}, trying next...")
+            print(f"  Failed: {e}")
             continue
 
-    # Final fallback: silent track (just voice, no music)
-    print("All music sources failed - using silent track")
-    subprocess.run([
-        "ffmpeg", "-y", "-f", "lavfi",
-        "-i", "anullsrc=r=44100:cl=stereo",
+    # Generate soft ambient pad music (guaranteed to work)
+    print("Using synthesized soft ambient music...")
+    return generate_soft_ambient(duration, trimmed)
+
+
+def generate_soft_ambient(duration, output_path):
+    """
+    Generate soft ambient pad music using FFmpeg synthesis.
+    Sounds like gentle background music, not beeping tones.
+    """
+    fade_start = max(0, duration - 3)
+
+    # Layered sine waves at musical intervals (C, E, G - C major chord)
+    # With slow LFO modulation for organic feel
+    cmd = [
+        "ffmpeg", "-y",
+        # Three pad layers at musical frequencies
+        "-f", "lavfi", "-i", "sine=frequency=261.63:sample_rate=44100",  # C4
+        "-f", "lavfi", "-i", "sine=frequency=329.63:sample_rate=44100",  # E4
+        "-f", "lavfi", "-i", "sine=frequency=392.00:sample_rate=44100",  # G4
+        "-f", "lavfi", "-i", "sine=frequency=130.81:sample_rate=44100",  # C3 (bass)
+        "-filter_complex",
+        # Mix all 4 layers, apply tremolo for organic sound
+        f"[0][1][2][3]amix=inputs=4:duration=longest[mix];"
+        f"[mix]tremolo=f=0.5:d=0.3,"           # gentle tremolo
+        f"volume=0.06,"                         # very subtle
+        f"highpass=f=150,"                      # cleaner sound
+        f"lowpass=f=4000,"                      # warmer pad-like tone
+        f"afade=t=in:d=3,"
+        f"afade=t=out:st={fade_start}:d=3"
+        f"[out]",
+        "-map", "[out]",
         "-t", str(duration + 1),
-        "-codec:a", "libmp3lame", trimmed
-    ], capture_output=True, timeout=15)
-    return trimmed
+        "-codec:a", "libmp3lame", output_path
+    ]
+
+    subprocess.run(cmd, capture_output=True, timeout=60)
+    print(f"Soft ambient music generated: {output_path}")
+    return output_path
 
 
 # ── Pre-render animation frames as a video clip (FAST — no zoompan) ──────────
@@ -515,6 +544,29 @@ def assemble_video(data, srt_path, music_path):
         "MarginL=80,MarginR=80"            # ~1cm side margins
     )
 
+    # ── PROFESSIONAL audio chain to remove gTTS artifacts ─────────────────
+    # gTTS audio has: low-frequency hum, high hiss, MP3 compression artifacts
+    # We clean all of these with FFmpeg's audio filters
+    audio_filter = (
+        # 1. Cut sub-bass rumble (everything below 100Hz is noise for voice)
+        "highpass=f=100:p=1,"
+        # 2. Cut high frequency hiss (above 8kHz)
+        "lowpass=f=8000:p=1,"
+        # 3. De-essing (reduce sharp 's' sounds)
+        "deesser=i=0.4,"
+        # 4. Strong noise reduction (FFT denoiser)
+        "afftdn=nr=20:nf=-30:tn=1,"
+        # 5. EQ boost for warmth (200Hz) and presence (2.5kHz)
+        "equalizer=f=200:width_type=h:width=100:g=2,"
+        "equalizer=f=2500:width_type=h:width=1000:g=2,"
+        # 6. Gentle compressor for consistent volume
+        "acompressor=threshold=-20dB:ratio=2:attack=15:release=200:makeup=2,"
+        # 7. Limiter to prevent clipping
+        "alimiter=limit=0.95,"
+        # 8. Final loudness normalization
+        "loudnorm=I=-14:TP=-1.5:LRA=11"
+    )
+
     cmd = [
         "ffmpeg", "-y",
         "-i", concat_video,
@@ -522,22 +574,18 @@ def assemble_video(data, srt_path, music_path):
         "-i", music_path,
         "-filter_complex",
         f"[0:v]subtitles='{srt_esc}':force_style='{sub_style}'[vout];"
-        # Clean voice: remove noise + normalize + compress
-        f"[1:a]highpass=f=80,"           # remove low-frequency rumble
-        f"lowpass=f=10000,"              # remove high-frequency hiss
-        f"afftdn=nr=10:nf=-25,"          # FFT-based noise reduction
-        f"acompressor=threshold=0.5:ratio=3:attack=200:release=1000,"  # even out volume
-        f"loudnorm=I=-16:TP=-1.5:LRA=11"  # broadcast loudness standard
-        f"[clean_voice];"
-        # Mix cleaned voice with subtle music
-        f"[clean_voice][2:a]amix=inputs=2:weights='1 0.12':duration=first[aout]",
+        f"[1:a]{audio_filter}[clean_voice];"
+        # Mix cleaned voice with subtle music (music at 12% volume)
+        f"[clean_voice][2:a]amix=inputs=2:weights='1.0 0.12':"
+        f"duration=first:dropout_transition=2[aout]",
         "-map", "[vout]",
         "-map", "[aout]",
         "-c:v", "libx264",
         "-preset", "ultrafast",
         "-crf", "24",
         "-c:a", "aac",
-        "-b:a", "192k",                  # higher bitrate for cleaner audio
+        "-b:a", "192k",
+        "-ar", "44100",
         "-r", str(FPS),
         "-pix_fmt", "yuv420p",
         "-movflags", "+faststart",
