@@ -1,17 +1,16 @@
 """
-Step 2: Generate natural voice using StreamElements TTS API
-- 100% FREE - no API key, no signup
-- Uses Amazon Polly voices (much more natural than gTTS)
-- Multiple voice personalities (Brian, Joey, Matthew, etc.)
-- Reliable in GitHub Actions
+Step 2: Generate natural voice using Hugging Face Inference API
+- FREE with email signup at huggingface.co (no credit card needed)
+- Uses Kokoro-82M - #1 ranked open-source TTS, near-ElevenLabs quality
+- Truly natural-sounding neural voices
 """
 
 import json
 import os
 import subprocess
 import sys
+import time
 import requests
-import urllib.parse
 
 
 def load_video_data():
@@ -19,7 +18,6 @@ def load_video_data():
         return json.load(f)
 
 
-# ── Translate text using Google Translate (free, no API key) ────────────────
 def translate_text(text, target_lang):
     if target_lang == "en":
         return text
@@ -30,58 +28,96 @@ def translate_text(text, target_lang):
         if r.status_code == 200:
             data = r.json()
             translated = "".join([chunk[0] for chunk in data[0] if chunk[0]])
-            print(f"  Translated: {text[:40]}... → {translated[:40]}...")
+            print(f"  Translated: {text[:40]}...")
             return translated
     except Exception as e:
         print(f"  Translation error: {e}")
     return text
 
 
-# ── StreamElements TTS API (FREE, natural Polly voices) ──────────────────────
-# Available voices (all FREE):
-#   Male:   Brian, Joey, Justin, Matthew, Russell
-#   Female: Amy, Emma, Joanna, Ivy, Kendra, Kimberly, Salli, Nicole
-STREAMELEMENTS_VOICES = {
-    "Brian":    "British male, deep professional",
-    "Joey":     "American male, young confident",
-    "Matthew":  "American male, mature warm",
-    "Justin":   "American male, casual friendly",
-    "Russell":  "Australian male, deep",
-    "Amy":      "British female, warm",
-    "Emma":     "British female, energetic",
-    "Joanna":   "American female, professional",
-    "Kendra":   "American female, friendly",
-    "Salli":    "American female, energetic",
+# ── HuggingFace Kokoro TTS — natural neural voice ───────────────────────────
+# Available voices for Kokoro:
+KOKORO_VOICES = {
+    "af_bella":  "American female, warm and clear (RECOMMENDED)",
+    "af_sarah":  "American female, professional",
+    "af_nicole": "American female, friendly",
+    "af_sky":    "American female, energetic",
+    "am_adam":   "American male, deep confident",
+    "am_michael":"American male, warm narrator",
+    "bf_emma":   "British female, sophisticated",
+    "bf_isabella": "British female, elegant",
+    "bm_george": "British male, classic",
+    "bm_lewis":  "British male, modern",
 }
 
 
-def streamelements_tts(text, output_path, voice="Brian"):
+def huggingface_tts(text, output_path, voice="af_bella", api_key=None):
     """
-    Free StreamElements TTS using Amazon Polly voices.
-    No API key, no signup, no rate limit issues.
+    Use Hugging Face Inference API with Kokoro-82M model.
+    This is the highest quality FREE TTS available.
     """
-    url = "https://api.streamelements.com/kappa/v2/speech"
-    params = {
-        "voice": voice,
-        "text": text
+    if not api_key:
+        print(f"  No HF_API_KEY set, skipping Hugging Face")
+        return False
+
+    # Hugging Face Kokoro model endpoint
+    API_URL = "https://api-inference.huggingface.co/models/hexgrad/Kokoro-82M"
+
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json"
     }
 
-    try:
-        r = requests.get(url, params=params, timeout=30)
-        if r.status_code == 200 and len(r.content) > 1000:
-            with open(output_path, "wb") as f:
-                f.write(r.content)
-            return True
-        else:
-            print(f"  StreamElements error: {r.status_code}")
-            return False
-    except Exception as e:
-        print(f"  StreamElements exception: {e}")
-        return False
+    payload = {
+        "inputs": text,
+        "parameters": {
+            "voice": voice
+        }
+    }
+
+    # Retry up to 3 times - HF models can be "loading" first time
+    for attempt in range(3):
+        try:
+            print(f"    HF attempt {attempt+1}/3 (voice={voice})")
+            r = requests.post(API_URL, headers=headers, json=payload, timeout=120)
+            print(f"    Status: {r.status_code}, Size: {len(r.content)} bytes")
+
+            if r.status_code == 200 and len(r.content) > 1000:
+                # Check if it's audio data (not JSON error)
+                if r.content[:4] in [b'RIFF', b'OggS', b'\xff\xfb', b'\xff\xf3', b'ID3\x04']:
+                    with open(output_path, "wb") as f:
+                        f.write(r.content)
+                    return True
+                else:
+                    # Try parsing as JSON to see if it's an error
+                    try:
+                        err = r.json()
+                        print(f"    HF response: {err}")
+                    except:
+                        # Maybe it IS audio just in unknown format
+                        with open(output_path, "wb") as f:
+                            f.write(r.content)
+                        return True
+
+            elif r.status_code == 503:
+                # Model loading, wait and retry
+                print(f"    Model loading, waiting 20s...")
+                time.sleep(20)
+            else:
+                try:
+                    err = r.json()
+                    print(f"    HF error: {err}")
+                except:
+                    print(f"    HF error: {r.text[:300]}")
+                return False
+        except Exception as e:
+            print(f"    Exception: {e}")
+            time.sleep(5)
+
+    return False
 
 
 def gtts_fallback(text, output_path, lang="en", tld="com"):
-    """gTTS fallback if StreamElements fails"""
     try:
         from gtts import gTTS
         if lang == "en":
@@ -96,7 +132,6 @@ def gtts_fallback(text, output_path, lang="en", tld="com"):
 
 
 def espeak_fallback(text, output_path):
-    """Last-resort fallback (sounds robotic)"""
     wav = output_path.replace(".mp3", ".wav")
     r = subprocess.run([
         "espeak-ng", "-v", "en-us+m3",
@@ -115,41 +150,22 @@ def espeak_fallback(text, output_path):
     return False
 
 
-def generate_segment(text, output_path, voice="Brian", lang="en"):
-    """
-    Try StreamElements first (best quality), fall back as needed.
-    Note: StreamElements supports English voices only.
-    """
-    if lang == "en":
-        # Try StreamElements with primary voice
-        print(f"  Trying StreamElements ({voice})...")
-        if streamelements_tts(text, output_path, voice):
-            print(f"  SUCCESS (StreamElements {voice})")
-            return f"streamelements_{voice}"
+def generate_segment(text, output_path, voice="af_bella", lang="en", hf_key=None):
+    """Try Hugging Face Kokoro first, fall back to gTTS, then espeak."""
+    if lang == "en" and hf_key:
+        print(f"  Trying Hugging Face Kokoro ({voice})...")
+        if huggingface_tts(text, output_path, voice, hf_key):
+            print(f"  SUCCESS (HuggingFace {voice})")
+            return f"hf_{voice}"
 
-        # Try alternative voices
-        for backup in ["Brian", "Joey", "Matthew", "Justin"]:
-            if backup == voice:
-                continue
-            print(f"  Trying StreamElements ({backup})...")
-            if streamelements_tts(text, output_path, backup):
-                print(f"  SUCCESS (StreamElements {backup})")
-                return f"streamelements_{backup}"
-
-        # gTTS fallback
-        print(f"  Trying gTTS fallback...")
-        if gtts_fallback(text, output_path):
-            print(f"  SUCCESS (gTTS)")
-            return "gtts"
-    else:
-        # Non-English: gTTS supports many languages, StreamElements doesn't
-        print(f"  Using gTTS for {lang}...")
-        if gtts_fallback(text, output_path, lang=lang):
-            print(f"  SUCCESS (gTTS {lang})")
-            return "gtts"
+    # gTTS fallback
+    print(f"  Trying gTTS...")
+    if gtts_fallback(text, output_path, lang=lang):
+        print(f"  SUCCESS (gTTS)")
+        return "gtts"
 
     # Last resort
-    print(f"  WARNING: Using espeak (will sound robotic)")
+    print(f"  WARNING: Using espeak (robotic)")
     if espeak_fallback(text, output_path):
         return "espeak"
     return "failed"
@@ -157,7 +173,6 @@ def generate_segment(text, output_path, voice="Brian", lang="en"):
 
 def combine_audio(segment_files, output_path):
     os.makedirs("output/audio", exist_ok=True)
-
     silence = "output/audio/silence.mp3"
     subprocess.run([
         "ffmpeg", "-y", "-f", "lavfi",
@@ -199,20 +214,22 @@ if __name__ == "__main__":
     os.makedirs("output/audio/segments", exist_ok=True)
 
     # ── VOICE CONFIGURATION ───────────────────────────────────────────────────
-    # English voices (StreamElements - natural Polly):
-    #   Brian, Joey, Matthew, Justin, Russell  (male)
-    #   Amy, Emma, Joanna, Kendra, Salli        (female)
-    VOICE_NAME = "Matthew"   # Warm mature male voice (best for facts)
-
-    # Language for spoken audio:
-    #   "en" → English (uses StreamElements)
-    #   "ne" → Nepali (uses gTTS)
-    #   "hi" → Hindi (uses gTTS)
+    # Available Kokoro voices (Hugging Face):
+    #   Female:  af_bella, af_sarah, af_nicole, af_sky, bf_emma, bf_isabella
+    #   Male:    am_adam, am_michael, bm_george, bm_lewis
+    VOICE_NAME = "am_michael"   # Warm narrator male voice
     VOICE_LANG = "en"
 
+    # Hugging Face API key from environment
+    HF_API_KEY = os.environ.get("HF_API_KEY")
+
     print(f"=== Generating voice for: {fruit} ===")
-    print(f"Engine: StreamElements (Amazon Polly voices)")
-    print(f"Voice: {VOICE_NAME} ({STREAMELEMENTS_VOICES.get(VOICE_NAME, 'N/A')})\n")
+    if HF_API_KEY:
+        print(f"Engine: Hugging Face Kokoro (high-quality neural)")
+        print(f"Voice: {VOICE_NAME} ({KOKORO_VOICES.get(VOICE_NAME, 'N/A')})")
+    else:
+        print(f"Engine: gTTS (HF_API_KEY not set, using fallback)")
+    print()
 
     segments = [
         ("hook",   vo["hook"]),
@@ -224,37 +241,34 @@ if __name__ == "__main__":
         ("outro",  vo["outro"]),
     ]
 
-    # Translate if non-English
     if VOICE_LANG != "en":
         print(f"Translating to {VOICE_LANG}...")
         segments = [(name, translate_text(text, VOICE_LANG)) for name, text in segments]
-        print()
 
     segment_files = []
     methods_used = []
     for name, text in segments:
         out = f"output/audio/segments/{name}.mp3"
         print(f"\nSegment: {name}")
-        method = generate_segment(text, out, voice=VOICE_NAME, lang=VOICE_LANG)
+        method = generate_segment(text, out, voice=VOICE_NAME,
+                                  lang=VOICE_LANG, hf_key=HF_API_KEY)
         methods_used.append(method)
         segment_files.append(out)
 
     duration = combine_audio(segment_files, "output/audio/final_voiceover.mp3")
 
-    # Summary
     print("\n=== Voice Generation Report ===")
-    se_count = sum(1 for m in methods_used if m.startswith("streamelements"))
+    hf_count = sum(1 for m in methods_used if m.startswith("hf_"))
     gtts_count = methods_used.count("gtts")
     espeak_count = methods_used.count("espeak")
 
-    print(f"StreamElements (natural):  {se_count}/{len(segments)}")
-    print(f"gTTS (backup):             {gtts_count}/{len(segments)}")
-    print(f"espeak (robotic):          {espeak_count}/{len(segments)}")
+    print(f"HuggingFace Kokoro: {hf_count}/{len(segments)}")
+    print(f"gTTS (backup):      {gtts_count}/{len(segments)}")
+    print(f"espeak (robotic):   {espeak_count}/{len(segments)}")
 
-    if espeak_count > 0:
-        print("\nWARNING: Some segments fell back to espeak!")
-    elif se_count == len(segments):
-        print(f"\nAll segments used natural StreamElements voice!")
-
-    if duration > 65:
-        print(f"WARNING: {duration:.1f}s is over 60s Shorts limit")
+    if hf_count == len(segments):
+        print(f"\nAll segments natural Kokoro voice!")
+    elif hf_count > 0:
+        print(f"\nMostly Kokoro, some gTTS fallback")
+    else:
+        print(f"\nNo Kokoro - check HF_API_KEY secret in GitHub")
