@@ -69,19 +69,22 @@ def get_background_music(duration):
                 with open(out, "wb") as f:
                     f.write(r.content)
 
-                # Mild soft music processing
+                # Loop music if shorter than video duration, then trim to fit
                 fade_start = max(0, duration - 3)
                 result = subprocess.run([
-                    "ffmpeg", "-y", "-i", out, "-t", str(duration + 1),
+                    "ffmpeg", "-y",
+                    "-stream_loop", "-1",        # loop infinitely
+                    "-i", out,
+                    "-t", str(duration + 1),     # then trim to needed length
                     "-af",
-                    f"volume=0.10,"                        # very subtle
-                    f"highpass=f=200,"                     # remove muddy lows (won't fight voice)
-                    f"lowpass=f=8000,"                     # remove harsh highs
+                    f"volume=0.10,"
+                    f"highpass=f=200,"
+                    f"lowpass=f=8000,"
                     f"afade=t=in:d=2,"
                     f"afade=t=out:st={fade_start}:d=3",
                     "-codec:a", "libmp3lame", "-qscale:a", "4",
                     trimmed
-                ], capture_output=True, timeout=60)
+                ], capture_output=True, timeout=120)
 
                 if result.returncode == 0 and os.path.exists(trimmed) \
                    and os.path.getsize(trimmed) > 5000:
@@ -544,27 +547,14 @@ def assemble_video(data, srt_path, music_path):
         "MarginL=80,MarginR=80"            # ~1cm side margins
     )
 
-    # ── PROFESSIONAL audio chain to remove gTTS artifacts ─────────────────
-    # gTTS audio has: low-frequency hum, high hiss, MP3 compression artifacts
-    # We clean all of these with FFmpeg's audio filters
+    # ── MINIMAL audio processing — gTTS is already clean ──────────────────
+    # Over-processing causes "air blowing" noise and pumping artifacts
+    # Just normalize loudness and gently clean very low rumble
     audio_filter = (
-        # 1. Cut sub-bass rumble (everything below 100Hz is noise for voice)
-        "highpass=f=100:p=1,"
-        # 2. Cut high frequency hiss (above 8kHz)
-        "lowpass=f=8000:p=1,"
-        # 3. De-essing (reduce sharp 's' sounds)
-        "deesser=i=0.4,"
-        # 4. Strong noise reduction (FFT denoiser)
-        "afftdn=nr=20:nf=-30:tn=1,"
-        # 5. EQ boost for warmth (200Hz) and presence (2.5kHz)
-        "equalizer=f=200:width_type=h:width=100:g=2,"
-        "equalizer=f=2500:width_type=h:width=1000:g=2,"
-        # 6. Gentle compressor for consistent volume
-        "acompressor=threshold=-20dB:ratio=2:attack=15:release=200:makeup=2,"
-        # 7. Limiter to prevent clipping
-        "alimiter=limit=0.95,"
-        # 8. Final loudness normalization
-        "loudnorm=I=-14:TP=-1.5:LRA=11"
+        # Light high-pass at 80Hz (cuts only true rumble, doesn't affect voice)
+        "highpass=f=80,"
+        # Loudness normalization to YouTube broadcast standard
+        "loudnorm=I=-16:TP=-1.5:LRA=11"
     )
 
     cmd = [
@@ -577,7 +567,7 @@ def assemble_video(data, srt_path, music_path):
         f"[1:a]{audio_filter}[clean_voice];"
         # Mix cleaned voice with subtle music (music at 12% volume)
         f"[clean_voice][2:a]amix=inputs=2:weights='1.0 0.12':"
-        f"duration=first:dropout_transition=2[aout]",
+        f"duration=longest:dropout_transition=0[aout]",
         "-map", "[vout]",
         "-map", "[aout]",
         "-c:v", "libx264",
@@ -611,8 +601,12 @@ if __name__ == "__main__":
     print(f"=== Assembling: {data['fruit']} ===")
 
     srt_path, _ = create_subtitles(data, thumbnail_offset=3.0)
-    voiceover_dur = get_duration("output/audio/final_voiceover.mp3") + 3.0
-    music_path = get_background_music(voiceover_dur)
+    # Music must cover the FULL video duration
+    # Voiceover + 3s thumbnail intro + 5s safety buffer for outro
+    voiceover_raw_dur = get_duration("output/audio/final_voiceover.mp3")
+    total_video_dur = voiceover_raw_dur + 3.0 + 5.0  # +intro +outro
+    print(f"Voiceover: {voiceover_raw_dur:.1f}s, Total video: {total_video_dur:.1f}s")
+    music_path = get_background_music(total_video_dur)
     assemble_video(data, srt_path, music_path)
 
     print("\nDone!")
