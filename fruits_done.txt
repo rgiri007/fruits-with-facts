@@ -1,16 +1,3 @@
-Apple
-Banana
-Mango
-Orange
-Strawberry
-Watermelon
-Pineapple
-Grapes
-Blueberry
-Peach
-Cherry
-Pear
-Kiwi
 Lemon
 Lime
 Avocado
