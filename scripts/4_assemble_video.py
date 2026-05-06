@@ -378,7 +378,7 @@ def create_outro_card(fruit_name, emoji, colors, output_path):
     img.save(output_path, "PNG", optimize=False)
 
 
-def create_subtitles(data, thumbnail_offset=3.0):
+def create_subtitles(data, thumbnail_offset=1.5):
     vo = data["voiceover"]
     seg_names = ["hook","fact_1","fact_2","fact_3","fact_4","fact_5","outro"]
     seg_texts = [
@@ -436,7 +436,7 @@ def assemble_video(data, srt_path, music_path):
     # Add 1.5s silence at start for thumbnail intro
     voiceover_mp3_orig = "output/audio/final_voiceover.mp3"
     voiceover_mp3 = "output/audio/voiceover_with_intro.mp3"
-    THUMB_DURATION = 3.0  # longer = better thumbnail selection by YouTube
+    THUMB_DURATION = 1.5  # short thumbnail intro
 
     subprocess.run([
         "ffmpeg", "-y",
@@ -600,11 +600,11 @@ if __name__ == "__main__":
     data = load_video_data()
     print(f"=== Assembling: {data['fruit']} ===")
 
-    srt_path, _ = create_subtitles(data, thumbnail_offset=3.0)
+    srt_path, _ = create_subtitles(data, thumbnail_offset=1.5)
     # Music must cover the FULL video duration
     # Voiceover + 3s thumbnail intro + 5s safety buffer for outro
     voiceover_raw_dur = get_duration("output/audio/final_voiceover.mp3")
-    total_video_dur = voiceover_raw_dur + 3.0 + 5.0  # +intro +outro
+    total_video_dur = voiceover_raw_dur + 1.5 + 5.0  # +intro +outro
     print(f"Voiceover: {voiceover_raw_dur:.1f}s, Total video: {total_video_dur:.1f}s")
     music_path = get_background_music(total_video_dur)
     assemble_video(data, srt_path, music_path)
