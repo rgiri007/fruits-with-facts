@@ -4,3 +4,4 @@ Avocado
 Blueberry
 Peach
 Cherry
+Pear
