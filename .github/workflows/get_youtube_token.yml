@@ -1,0 +1,67 @@
+name: Get YouTube Refresh Token
+
+on:
+  workflow_dispatch:
+    inputs:
+      auth_code:
+        description: 'Paste the auth code from browser URL here'
+        required: true
+      redirect_uri:
+        description: 'Redirect URI used (default: http://localhost:8080)'
+        required: false
+        default: 'http://localhost:8080'
+
+jobs:
+  get-token:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Exchange auth code for refresh token
+        env:
+          YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
+          YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
+          AUTH_CODE: ${{ inputs.auth_code }}
+          REDIRECT_URI: ${{ inputs.redirect_uri }}
+        run: |
+          python3 << 'PYEOF'
+          import requests
+          import os
+          import urllib.parse
+
+          client_id     = os.environ["YOUTUBE_CLIENT_ID"]
+          client_secret = os.environ["YOUTUBE_CLIENT_SECRET"]
+          auth_code     = os.environ["AUTH_CODE"].strip()
+          redirect_uri  = os.environ["REDIRECT_URI"].strip()
+
+          print(f"Client ID:    {client_id[:20]}...")
+          print(f"Redirect URI: {redirect_uri}")
+          print(f"Auth code:    {auth_code[:20]}...")
+
+          # Exchange code for tokens
+          response = requests.post(
+              "https://oauth2.googleapis.com/token",
+              data={
+                  "code":          auth_code,
+                  "client_id":     client_id,
+                  "client_secret": client_secret,
+                  "redirect_uri":  redirect_uri,
+                  "grant_type":    "authorization_code",
+              }
+          )
+
+          data = response.json()
+          print(f"\nResponse: {data}")
+
+          if "refresh_token" in data:
+              print("\n" + "="*50)
+              print("SUCCESS! Your refresh token is:")
+              print("="*50)
+              print(data["refresh_token"])
+              print("="*50)
+              print("\nNow go to GitHub Secrets and update YOUTUBE_REFRESH_TOKEN with the value above")
+          else:
+              print(f"\nFAILED: {data}")
+              print("\nCommon fixes:")
+              print("1. Make sure you copied the FULL code from the URL bar")
+              print("2. The code expires in 60 seconds - get a fresh one")
+              print("3. Make sure redirect_uri matches exactly what you used")
+          PYEOF
