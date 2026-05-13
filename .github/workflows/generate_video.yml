@@ -45,18 +45,18 @@ jobs:
       - name: Step 4 - Assemble Interactive Shorts Video
         run: python scripts/4_assemble_video.py
 
-#      - name: Step 5 - Upload to YouTube Shorts
-#        env:
-#          YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
-#          YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
-#          YOUTUBE_REFRESH_TOKEN: ${{ secrets.YOUTUBE_REFRESH_TOKEN }}
-#        run: python scripts/5_upload_youtube.py
-
-
-      - name: Step 6 - Upload to TikTok
+      - name: Step 5 - Upload to YouTube Shorts
         env:
-          TIKTOK_SESSION_ID: ${{ secrets.TIKTOK_SESSION_ID }}
-        run: python scripts/6_upload_tiktok.py
+          YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
+          YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
+          YOUTUBE_REFRESH_TOKEN: ${{ secrets.YOUTUBE_REFRESH_TOKEN }}
+        run: python scripts/5_upload_youtube.py
+
+
+      #- name: Step 6 - Upload to TikTok
+     #   env:
+      #    TIKTOK_SESSION_ID: ${{ secrets.TIKTOK_SESSION_ID }}
+      #  run: python scripts/6_upload_tiktok.py
 
       - name: Save progress
         run: |
