@@ -7,3 +7,4 @@ Cherry
 Pear
 Kiwi
 Papaya
+Pomegranate
