@@ -11,3 +11,4 @@ Pomegranate
 Coconut
 Fig
 Guava
+Lychee
