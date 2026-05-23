@@ -12,3 +12,4 @@ Coconut
 Fig
 Guava
 Lychee
+Passion Fruit
