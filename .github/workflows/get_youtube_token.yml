@@ -1,67 +1,64 @@
-name: Get YouTube Refresh Token
+name: Auto Refresh YouTube Token
 
 on:
-  workflow_dispatch:
-    inputs:
-      auth_code:
-        description: 'Paste the auth code from browser URL here'
-        required: true
-      redirect_uri:
-        description: 'Redirect URI used (default: http://localhost:8080)'
-        required: false
-        default: 'http://localhost:8080'
+  schedule:
+    # Run every 5 days — well before 7-day Testing mode expiry
+    - cron: '0 8 * * */5'
+  workflow_dispatch:  # Can also trigger manually
 
 jobs:
-  get-token:
+  refresh:
     runs-on: ubuntu-latest
+    timeout-minutes: 5
+
     steps:
-      - name: Exchange auth code for refresh token
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Install dependencies
+        run: pip install requests
+
+      - name: Refresh YouTube token
         env:
           YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
           YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
-          AUTH_CODE: ${{ inputs.auth_code }}
-          REDIRECT_URI: ${{ inputs.redirect_uri }}
+          YOUTUBE_REFRESH_TOKEN: ${{ secrets.YOUTUBE_REFRESH_TOKEN }}
         run: |
           python3 << 'PYEOF'
-          import requests
-          import os
-          import urllib.parse
+          import requests, os, sys
 
-          client_id     = os.environ["YOUTUBE_CLIENT_ID"]
-          client_secret = os.environ["YOUTUBE_CLIENT_SECRET"]
-          auth_code     = os.environ["AUTH_CODE"].strip()
-          redirect_uri  = os.environ["REDIRECT_URI"].strip()
+          print("Refreshing YouTube token...")
 
-          print(f"Client ID:    {client_id[:20]}...")
-          print(f"Redirect URI: {redirect_uri}")
-          print(f"Auth code:    {auth_code[:20]}...")
+          r = requests.post("https://oauth2.googleapis.com/token", data={
+              "client_id":     os.environ["YOUTUBE_CLIENT_ID"],
+              "client_secret": os.environ["YOUTUBE_CLIENT_SECRET"],
+              "refresh_token": os.environ["YOUTUBE_REFRESH_TOKEN"],
+              "grant_type":    "refresh_token"
+          })
 
-          # Exchange code for tokens
-          response = requests.post(
-              "https://oauth2.googleapis.com/token",
-              data={
-                  "code":          auth_code,
-                  "client_id":     client_id,
-                  "client_secret": client_secret,
-                  "redirect_uri":  redirect_uri,
-                  "grant_type":    "authorization_code",
-              }
-          )
+          data = r.json()
 
-          data = response.json()
-          print(f"\nResponse: {data}")
+          if "access_token" in data:
+              print("Token is HEALTHY and refreshed successfully!")
+              print("Token will not expire for another 7 days")
 
-          if "refresh_token" in data:
-              print("\n" + "="*50)
-              print("SUCCESS! Your refresh token is:")
-              print("="*50)
-              print(data["refresh_token"])
-              print("="*50)
-              print("\nNow go to GitHub Secrets and update YOUTUBE_REFRESH_TOKEN with the value above")
+              if "refresh_token" in data:
+                  print("\nNEW REFRESH TOKEN ISSUED BY GOOGLE:")
+                  print("="*50)
+                  print(data["refresh_token"])
+                  print("="*50)
+                  print("ACTION REQUIRED: Update YOUTUBE_REFRESH_TOKEN secret with above value!")
           else:
-              print(f"\nFAILED: {data}")
-              print("\nCommon fixes:")
-              print("1. Make sure you copied the FULL code from the URL bar")
-              print("2. The code expires in 60 seconds - get a fresh one")
-              print("3. Make sure redirect_uri matches exactly what you used")
+              print(f"Token refresh FAILED: {data}")
+              print("\nACTION REQUIRED: Get a new refresh token!")
+              print("Run the 'Get YouTube Refresh Token' workflow")
+              sys.exit(1)
           PYEOF
+
+      - name: Token refresh complete
+        run: echo "YouTube token refreshed successfully at $(date)"
