@@ -18,3 +18,4 @@ Jackfruit
 Durian
 Starfruit
 Persimmon
+Apricot
