@@ -19,3 +19,4 @@ Durian
 Starfruit
 Persimmon
 Apricot
+Plum
