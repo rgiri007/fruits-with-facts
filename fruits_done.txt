@@ -20,3 +20,4 @@ Starfruit
 Persimmon
 Apricot
 Plum
+Nectarine
