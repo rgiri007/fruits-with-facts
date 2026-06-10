@@ -119,7 +119,7 @@ def generate_soft_ambient(duration, output_path):
         # Mix all 4 layers, apply tremolo for organic sound
         f"[0][1][2][3]amix=inputs=4:duration=longest[mix];"
         f"[mix]tremolo=f=0.5:d=0.3,"           # gentle tremolo
-        f"volume=0.06,"                         # very subtle
+        f"volume=0.08,"                         # very subtle
         f"highpass=f=150,"                      # cleaner sound
         f"lowpass=f=4000,"                      # warmer pad-like tone
         f"afade=t=in:d=3,"
