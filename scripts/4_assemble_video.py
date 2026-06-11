@@ -436,7 +436,7 @@ def assemble_video(data, srt_path, music_path):
     # Add 1.5s silence at start for thumbnail intro
     voiceover_mp3_orig = "output/audio/final_voiceover.mp3"
     voiceover_mp3 = "output/audio/voiceover_with_intro.mp3"
-    THUMB_DURATION = 1.5  # short thumbnail intro
+    THUMB_DURATION = 2  # short thumbnail intro
 
     subprocess.run([
         "ffmpeg", "-y",
