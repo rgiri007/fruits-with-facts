@@ -19,3 +19,4 @@ Durian
 Starfruit
 Raspberry
 Persimmon
+Apricot
