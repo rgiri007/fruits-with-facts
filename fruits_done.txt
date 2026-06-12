@@ -20,3 +20,4 @@ Starfruit
 Raspberry
 Persimmon
 Apricot
+Plum
