@@ -21,3 +21,4 @@ Raspberry
 Persimmon
 Apricot
 Plum
+Nectarine
