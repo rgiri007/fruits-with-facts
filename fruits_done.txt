@@ -23,3 +23,4 @@ Apricot
 Plum
 Nectarine
 Blackberry
+Cranberry
