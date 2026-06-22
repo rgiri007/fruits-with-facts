@@ -25,3 +25,4 @@ Nectarine
 Blackberry
 Cranberry
 Grapefruit
+Cantaloupe
