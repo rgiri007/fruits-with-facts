@@ -29,3 +29,4 @@ Cantaloupe
 Honeydew
 Tangerine
 Mandarin
+Clementine
